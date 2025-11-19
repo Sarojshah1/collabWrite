@@ -34,6 +34,74 @@ function ensureKey(res) {
   return false;
 }
 
+async function generateTextWithProvider({
+  system,
+  user,
+  temperature = 0.7,
+  maxTokens = 2000,
+  geminiModel = 'gemini-1.5-flash',
+  geminiPrimaryWithClaudeFallback = false,
+}) {
+  try {
+    if (env.AI_PROVIDER === 'openai') {
+      if (!openai) throw new Error('OPENAI client not initialized');
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        temperature,
+        max_tokens: maxTokens,
+      });
+      return completion.choices?.[0]?.message?.content || '';
+    }
+
+    if (env.AI_PROVIDER === 'gemini') {
+      if (!gemini) throw new Error('Gemini client not initialized');
+      try {
+        const model = gemini.getGenerativeModel({ model: geminiModel });
+        const result = await model.generateContent(`${system}\n\n${user}`);
+        return result?.response?.text?.() || '';
+      } catch (err) {
+        if (geminiPrimaryWithClaudeFallback && claude) {
+          const msg = await claude.messages.create({
+            model: 'claude-3-haiku-20240307',
+            max_tokens: maxTokens,
+            temperature,
+            system,
+            messages: [
+              { role: 'user', content: user },
+            ],
+          });
+          const parts = Array.isArray(msg?.content) ? msg.content : [];
+          return parts.map((p) => p?.text || '').join('\n').trim();
+        }
+        throw err;
+      }
+    }
+
+    if (env.AI_PROVIDER === 'claude') {
+      if (!claude) throw new Error('Claude client not initialized');
+      const msg = await claude.messages.create({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: maxTokens,
+        temperature,
+        system,
+        messages: [
+          { role: 'user', content: user },
+        ],
+      });
+      const parts = Array.isArray(msg?.content) ? msg.content : [];
+      return parts.map((p) => p?.text || '').join('\n').trim();
+    }
+
+    throw new Error(`Unsupported AI_PROVIDER: ${env.AI_PROVIDER}`);
+  } catch (err) {
+    throw err;
+  }
+}
+
 export const generateBlog = async (req, res) => {
   try {
     if (!ensureKey(res)) return;
@@ -60,72 +128,31 @@ Tone: ${tone}
 Target length: ~${wordCount} words
 ${Array.isArray(outline) && outline.length ? `Outline to follow: ${outline.join(' | ')}` : ''}`;
 
-    let content = '';
-    if (env.AI_PROVIDER === 'openai') {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: sys },
-          { role: 'user', content: user },
-        ],
-        temperature: 0.7,
-      });
-      content = completion.choices?.[0]?.message?.content || '';
-    } else if (env.AI_PROVIDER === 'gemini') {
-      // Primary provider: Gemini
-      try {
-        const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
-        const prompt = `${sys}\n\n${user}`;
-        const result = await model.generateContent(prompt);
-        content = result?.response?.text?.() || '';
-      } catch (err) {
-        console.log('Gemini failed, attempting Claude fallback…', err?.status, err?.message);
-        if (claude) {
-          const msg = await claude.messages.create({
-            model: 'claude-3-haiku-20240307',
-            max_tokens: 2000,
-            temperature: 0.7,
-            system: sys,
-            messages: [
-              { role: 'user', content: user },
-            ],
-          });
-          const parts = Array.isArray(msg?.content) ? msg.content : [];
-          content = parts.map((p) => p?.text || '').join('\n').trim();
-        } else {
-          throw err;
-        }
-      }
-    } else if (env.AI_PROVIDER === 'claude') {
-      const msg = await claude.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 2000,
-        temperature: 0.7,
-        system: sys,
-        messages: [
-          { role: 'user', content: user },
-        ],
-      });
-      const parts = Array.isArray(msg?.content) ? msg.content : [];
-      content = parts.map((p) => p?.text || '').join('\n').trim();
-    }
+    const content = await generateTextWithProvider({
+      system: sys,
+      user,
+      temperature: 0.7,
+      maxTokens: 2000,
+      geminiModel: 'gemini-2.5-flash',
+      geminiPrimaryWithClaudeFallback: true,
+    });
     return sendSuccess(res, { content });
   } catch (err) {
     console.log(err);
 
     // Gracefully handle provider overload (e.g. Gemini 503)
-    if ((err as any)?.status === 503) {
+    if (err?.status === 503) {
       return sendError(
         res,
         503,
         'AI service is temporarily overloaded. Please try again in a few seconds.',
-        (err as any).statusText || (err as any).message
+        err?.statusText || err?.message
       );
     }
 
     // Handle Anthropic low-credit / billing issues explicitly so the user understands the problem
-    const msg = (err as any)?.error?.error?.message || (err as any)?.message;
-    if ((err as any)?.status === 400 && typeof msg === 'string' && msg.toLowerCase().includes('credit balance is too low')) {
+    const msg = err?.error?.error?.message || err?.message;
+    if (err?.status === 400 && typeof msg === 'string' && msg.toLowerCase().includes('credit balance is too low')) {
       return sendError(
         res,
         503,
@@ -134,7 +161,7 @@ ${Array.isArray(outline) && outline.length ? `Outline to follow: ${outline.join(
       );
     }
 
-    return sendError(res, 500, 'Failed to generate blog', (err as any)?.message || 'Unknown error');
+    return sendError(res, 500, 'Failed to generate blog', err?.message || 'Unknown error');
   }
 };
 
@@ -167,34 +194,13 @@ export const generateDraft = async (req, res) => {
       (Array.isArray(keywords) && keywords.length ? `Keywords: ${keywords.join(', ')}\n` : '') +
       `Audience: ${audience}`;
 
-    let raw = '';
-    if (env.AI_PROVIDER === 'openai') {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: sys },
-          { role: 'user', content: details },
-        ],
-        temperature: 0.7,
-      });
-      raw = completion.choices?.[0]?.message?.content || '';
-    } else if (env.AI_PROVIDER === 'gemini') {
-      const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const result = await model.generateContent(`${sys}\n\n${details}`);
-      raw = result?.response?.text?.() || '';
-    } else if (env.AI_PROVIDER === 'claude') {
-      const msg = await claude.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 2000,
-        temperature: 0.7,
-        system: sys,
-        messages: [
-          { role: 'user', content: details },
-        ],
-      });
-      const parts = Array.isArray(msg?.content) ? msg.content : [];
-      raw = parts.map((p) => p?.text || '').join('\n').trim();
-    }
+    const raw = await generateTextWithProvider({
+      system: sys,
+      user: details,
+      temperature: 0.7,
+      maxTokens: 2000,
+      geminiModel: 'gemini-1.5-flash',
+    });
 
     // Try to extract JSON even if the model added stray text or fences
     const extractJson = (text) => {
@@ -265,62 +271,23 @@ export const generateTitle = async (req, res) => {
         (explanation ? `Explanation: ${explanation}\n` : '') +
         `Audience: ${audience}\nTone: ${tone}`;
 
-    let text = '';
-    if (env.AI_PROVIDER === 'openai') {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You generate catchy, SEO-friendly blog post titles. Constraints: return ONLY a numbered list (1., 2., ...), no extra commentary; keep each title under the requested character limit; avoid quote marks around titles; avoid duplicates; be specific and benefit-oriented.',
-          },
-          {
-            role: 'user',
-            content:
-              `Create ${count} distinct blog titles based on the details below.\n` +
-              `Keep each title under ${maxLength} characters.\n` +
-              (Array.isArray(keywords) && keywords.length ? `Prefer including these keywords where natural: ${keywords.join(', ')}.\n` : '') +
-              (Array.isArray(avoidWords) && avoidWords.length ? `Avoid these words: ${avoidWords.join(', ')}.\n` : '') +
-              `Content details:\n${compositePrompt}`,
-          },
-        ],
-        temperature: 0.8,
-      });
-      text = completion.choices?.[0]?.message?.content || '';
-    } else if (env.AI_PROVIDER === 'gemini') {
-      const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const result = await model.generateContent(
-        `Create ${count} distinct, catchy, SEO-friendly blog titles.\n` +
-          `Keep each title under ${maxLength} characters.\n` +
-          (Array.isArray(keywords) && keywords.length ? `Prefer including these keywords where natural: ${keywords.join(', ')}.\n` : '') +
-          (Array.isArray(avoidWords) && avoidWords.length ? `Avoid these words: ${avoidWords.join(', ')}.\n` : '') +
-          `Return ONLY a numbered list. No extra text.\n\n` +
-          `Content details:\n${compositePrompt}`
-      );
-      text = result?.response?.text?.() || '';
-    } else if (env.AI_PROVIDER === 'claude') {
-      const msg = await claude.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 600,
-        temperature: 0.8,
-        system:
-          'You generate catchy, SEO-friendly blog post titles. Return ONLY a numbered list (1., 2., ...), no extra commentary; keep each title under the requested character limit; avoid quote marks around titles; avoid duplicates; be specific and benefit-oriented.',
-        messages: [
-          {
-            role: 'user',
-            content:
-              `Create ${count} distinct blog titles based on the details below.\n` +
-              `Keep each title under ${maxLength} characters.\n` +
-              (Array.isArray(keywords) && keywords.length ? `Prefer including these keywords where natural: ${keywords.join(', ')}.\n` : '') +
-              (Array.isArray(avoidWords) && avoidWords.length ? `Avoid these words: ${avoidWords.join(', ')}.\n` : '') +
-              `Content details:\n${compositePrompt}`,
-          },
-        ],
-      });
-      const parts = Array.isArray(msg?.content) ? msg.content : [];
-      text = parts.map((p) => p?.text || '').join('\n').trim();
-    }
+    const system =
+      'You generate catchy, SEO-friendly blog post titles. Constraints: return ONLY a numbered list (1., 2., ...), no extra commentary; keep each title under the requested character limit; avoid quote marks around titles; avoid duplicates; be specific and benefit-oriented.';
+
+    const user =
+      `Create ${count} distinct blog titles based on the details below.\n` +
+      `Keep each title under ${maxLength} characters.\n` +
+      (Array.isArray(keywords) && keywords.length ? `Prefer including these keywords where natural: ${keywords.join(', ')}.\n` : '') +
+      (Array.isArray(avoidWords) && avoidWords.length ? `Avoid these words: ${avoidWords.join(', ')}.\n` : '') +
+      `Content details:\n${compositePrompt}`;
+
+    const text = await generateTextWithProvider({
+      system,
+      user,
+      temperature: 0.8,
+      maxTokens: 600,
+      geminiModel: 'gemini-1.5-flash',
+    });
 
     let titles = text
       .split('\n')
@@ -352,36 +319,16 @@ export const generateSummary = async (req, res) => {
     const { content, maxWords = 120 } = req.body || {};
     if (!content) return sendError(res, 400, 'content is required');
 
-    let summary = '';
-    if (env.AI_PROVIDER === 'openai') {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'Summarize the content in plain English, focusing on key points. Keep it under the requested word limit.' },
-          { role: 'user', content: `Max words: ${maxWords}\n\nContent:\n${content}` },
-        ],
-        temperature: 0.3,
-      });
-      summary = completion.choices?.[0]?.message?.content || '';
-    } else if (env.AI_PROVIDER === 'gemini') {
-      const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const result = await model.generateContent(
-        `Summarize the following content in under ${maxWords} words, focusing on key points.\n\n${content}`
-      );
-      summary = result?.response?.text?.() || '';
-    } else if (env.AI_PROVIDER === 'claude') {
-      const msg = await claude.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 400,
-        temperature: 0.3,
-        system: 'Summarize the content in plain English, focusing on key points. Keep it under the requested word limit.',
-        messages: [
-          { role: 'user', content: `Max words: ${maxWords}\n\nContent:\n${content}` },
-        ],
-      });
-      const parts = Array.isArray(msg?.content) ? msg.content : [];
-      summary = parts.map((p) => p?.text || '').join('\n').trim();
-    }
+    const system = 'Summarize the content in plain English, focusing on key points. Keep it under the requested word limit.';
+    const user = `Max words: ${maxWords}\n\nContent:\n${content}`;
+
+    const summary = await generateTextWithProvider({
+      system,
+      user,
+      temperature: 0.3,
+      maxTokens: 400,
+      geminiModel: 'gemini-1.5-flash',
+    });
     return sendSuccess(res, { summary });
   } catch (err) {
     return sendError(res, 500, 'Failed to generate summary', err.message);
@@ -394,36 +341,17 @@ export const generateKeywords = async (req, res) => {
     const { content, count = 12 } = req.body || {};
     if (!content) return sendError(res, 400, 'content is required');
 
-    let text = '';
-    if (env.AI_PROVIDER === 'openai') {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'Extract SEO keywords and keyphrases from the content. Return as a JSON array of strings only.' },
-          { role: 'user', content: `Return ${Math.min(Math.max(count, 3), 25)} keywords for the following content:\n\n${content}` },
-        ],
-        temperature: 0.4,
-      });
-      text = completion.choices?.[0]?.message?.content || '[]';
-    } else if (env.AI_PROVIDER === 'gemini') {
-      const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const result = await model.generateContent(
-        `Extract ${Math.min(Math.max(count, 3), 25)} SEO keywords and keyphrases from the content. Return as a JSON array of strings only.\n\n${content}`
-      );
-      text = result?.response?.text?.() || '[]';
-    } else if (env.AI_PROVIDER === 'claude') {
-      const msg = await claude.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 400,
-        temperature: 0.4,
-        system: 'Extract SEO keywords and keyphrases from the content. Return as a JSON array of strings only.',
-        messages: [
-          { role: 'user', content: `Return ${Math.min(Math.max(count, 3), 25)} keywords for the following content:\n\n${content}` },
-        ],
-      });
-      const parts = Array.isArray(msg?.content) ? msg.content : [];
-      text = parts.map((p) => p?.text || '').join('\n').trim() || '[]';
-    }
+    const limit = Math.min(Math.max(count, 3), 25);
+    const system = 'Extract SEO keywords and keyphrases from the content. Return as a JSON array of strings only.';
+    const user = `Return ${limit} keywords for the following content:\n\n${content}`;
+
+    const text = await generateTextWithProvider({
+      system,
+      user,
+      temperature: 0.4,
+      maxTokens: 400,
+      geminiModel: 'gemini-1.5-flash',
+    }) || '[]';
 
     let keywords = [];
     try {
@@ -446,36 +374,16 @@ export const generateOutline = async (req, res) => {
     const { prompt } = req.body || {};
     if (!prompt) return sendError(res, 400, 'prompt is required');
 
-    let text = '';
-    if (env.AI_PROVIDER === 'openai') {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'Create a reasonable blog outline with H2/H3 structure. Return as a JSON array of section titles.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.5,
-      });
-      text = completion.choices?.[0]?.message?.content || '[]';
-    } else if (env.AI_PROVIDER === 'gemini') {
-      const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const result = await model.generateContent(
-        'Create a reasonable blog outline with H2/H3 structure for the following prompt. Return as a JSON array of section titles.\n\n' + prompt
-      );
-      text = result?.response?.text?.() || '[]';
-    } else if (env.AI_PROVIDER === 'claude') {
-      const msg = await claude.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 600,
-        temperature: 0.5,
-        system: 'Create a reasonable blog outline with H2/H3 structure. Return as a JSON array of section titles.',
-        messages: [
-          { role: 'user', content: prompt },
-        ],
-      });
-      const parts = Array.isArray(msg?.content) ? msg.content : [];
-      text = parts.map((p) => p?.text || '').join('\n').trim() || '[]';
-    }
+    const system = 'Create a reasonable blog outline with H2/H3 structure. Return as a JSON array of section titles.';
+    const user = prompt;
+
+    const text = await generateTextWithProvider({
+      system,
+      user,
+      temperature: 0.5,
+      maxTokens: 600,
+      geminiModel: 'gemini-1.5-flash',
+    }) || '[]';
 
     let outline = [];
     try {
