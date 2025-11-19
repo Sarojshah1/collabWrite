@@ -1,0 +1,19 @@
+{
+  "name": "final-sem-ui-project",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "install:all": "pnpm install",
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "start": "pnpm -r --parallel run start",
+    "lint": "pnpm -r run lint",
+    "dev:frontend": "pnpm -F frontend run dev",
+    "dev:backend": "pnpm -F collabwrite-backend run dev",
+    "build:frontend": "pnpm -F frontend run build",
+    "build:backend": "pnpm -F collabwrite-backend run build",
+    "start:frontend": "pnpm -F frontend run start",
+    "start:backend": "pnpm -F collabwrite-backend run start"
+  }
+}
