@@ -158,7 +158,7 @@ export async function resolveConflictWithAI(req, res, next) {
       });
       raw = completion.choices?.[0]?.message?.content || '';
     } else if (env.AI_PROVIDER === 'gemini') {
-      const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const result = await model.generateContent(`${sysPrompt}\n\n${userPrompt}`);
       raw = result?.response?.text?.() || '';
     }

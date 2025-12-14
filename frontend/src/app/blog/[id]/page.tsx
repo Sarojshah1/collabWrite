@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getBlog, type Blog } from "@/services/blogService";
+import { recordView, recordLike, recordComment } from "@/services/analyticsService";
 
 export default function ReadBlogPage() {
   const params = useParams();
@@ -12,6 +13,10 @@ export default function ReadBlogPage() {
   const [blog, setBlog] = useState<Blog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState<{ id: number; text: string; ts: number }[]>([]);
+  const viewRecordedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -31,6 +36,20 @@ export default function ReadBlogPage() {
       mounted = false;
     };
   }, [id]);
+
+  // Record a view once per mount for this blog
+  useEffect(() => {
+    if (!blog?._id) return;
+    if (viewRecordedRef.current) return;
+    viewRecordedRef.current = true;
+    (async () => {
+      try {
+        await recordView(blog._id as string);
+      } catch {
+        // ignore analytics errors on client
+      }
+    })();
+  }, [blog?._id]);
 
   const readingTime = (() => {
     if (!blog?.contentHTML) return null;
@@ -121,11 +140,30 @@ export default function ReadBlogPage() {
               dangerouslySetInnerHTML={{ __html: blog.contentHTML || "" }}
             />
 
-            <footer className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 pt-5 text-xs text-zinc-600">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-medium text-zinc-700">
-                  Finished reading
-                </span>
+            {/* Reader interactions */}
+            <section className="mt-10 border-t border-zinc-200 pt-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-600">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={likeBusy}
+                    onClick={async () => {
+                      if (!blog?._id) return;
+                      try {
+                        setLikeBusy(true);
+                        await recordLike(blog._id);
+                      } finally {
+                        setLikeBusy(false);
+                      }
+                    }}
+                    className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium hover:bg-zinc-50 disabled:opacity-60"
+                  >
+                    {likeBusy ? "Liking…" : "Like"}
+                  </button>
+                  <span className="hidden sm:inline text-[11px] text-zinc-500">
+                    Likes and comments help power your Reports & Analytics.
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
@@ -134,21 +172,72 @@ export default function ReadBlogPage() {
                   Back to top
                 </button>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  href="/dashboard"
-                  className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium hover:bg-zinc-50"
+
+              <div className="space-y-2 text-xs">
+                <p className="font-medium text-zinc-800">Comments</p>
+                <div className="max-h-40 overflow-y-auto space-y-1.5">
+                  {comments.length === 0 && (
+                    <p className="text-[11px] text-zinc-500">No comments yet. Be the first to leave feedback.</p>
+                  )}
+                  {comments.map((c) => (
+                    <div key={c.id} className="rounded-md border border-zinc-200 bg-white px-2 py-1">
+                      <p className="text-[11px] text-zinc-800 whitespace-pre-wrap">{c.text}</p>
+                      <p className="mt-0.5 text-[10px] text-zinc-400">{new Date(c.ts).toLocaleTimeString()}</p>
+                    </div>
+                  ))}
+                </div>
+                <form
+                  className="mt-1 flex items-center gap-2"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const txt = commentText.trim();
+                    if (!txt || !blog?._id) return;
+                    const entry = { id: Date.now(), text: txt, ts: Date.now() };
+                    setComments((prev) => [entry, ...prev]);
+                    setCommentText("");
+                    try {
+                      await recordComment(blog._id, txt);
+                    } catch {}
+                  }}
                 >
-                  Go to dashboard
-                </a>
-                <a
-                  href="/dashboard/write"
-                  className="rounded-full bg-zinc-900 px-3 py-1 text-[11px] font-medium text-white hover:bg-zinc-800"
-                >
-                  Open editor
-                </a>
+                  <input
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    placeholder="Add a comment about this article…"
+                    className="flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!commentText.trim()}
+                    className="inline-flex items-center rounded-md bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-black disabled:opacity-60"
+                  >
+                    Post
+                  </button>
+                </form>
               </div>
-            </footer>
+
+              <footer className="flex flex-wrap items-center justify-between gap-4 pt-3 text-xs text-zinc-600">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-medium text-zinc-700">
+                    Finished reading
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href="/dashboard"
+                    className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium hover:bg-zinc-50"
+                  >
+                    Go to dashboard
+                  </a>
+                  <a
+                    href="/dashboard/write"
+                    className="rounded-full bg-zinc-900 px-3 py-1 text-[11px] font-medium text-white hover:bg-zinc-800"
+                  >
+                    Open editor
+                  </a>
+                </div>
+              </footer>
+            </section>
           </article>
         )}
       </main>

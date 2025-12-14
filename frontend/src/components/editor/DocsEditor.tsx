@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { generateBlog, generateSummary, generateTitle } from "@/services/aiService";
 import { createBlog, updateBlog, getBlog } from "@/services/blogService";
 import { connectCollab, getUserIdFromToken } from "@/services/realtimeService";
@@ -72,6 +73,7 @@ type DocsEditorProps = {
 };
 
 export default function DocsEditor({ initialDocId }: DocsEditorProps) {
+  const router = useRouter();
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -86,6 +88,7 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
   const [pages, setPages] = useState<number>(1);
   const [presence, setPresence] = useState<any>(null);
   const collabRef = useRef<null | Awaited<ReturnType<typeof connectCollab>>>(null);
+  const myUserIdRef = useRef<string>(getUserIdFromToken() || "anon");
   const [showDownload, setShowDownload] = useState(false);
   const [showFile, setShowFile] = useState(false);
   const [showInsert, setShowInsert] = useState(false);
@@ -199,15 +202,45 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     let mounted = true;
     (async () => {
       if (!docId) return;
-      const userId = getUserIdFromToken() || "anon";
+      const userId = myUserIdRef.current;
       try {
         if (!collabRef.current) {
           const client = await connectCollab();
           if (!mounted) { client.disconnect(); return; }
           collabRef.current = client;
-          client.onPresence((p) => setPresence(p));
+          client.onPresence((p) => {
+            if (typeof window !== 'undefined') console.log('[collab] presence', p);
+            setPresence(p);
+            if (typeof window !== 'undefined' && pageContainerRef.current) {
+              renderRemoteCursors(pageContainerRef.current, p, myUserIdRef.current);
+            }
+          });
+
+          client.onSnapshot(({ blogId, contentHTML }) => {
+            if (!docId || blogId !== docId) return;
+            if (!contentHTML) return;
+            const nodes = pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page");
+            if (!nodes || nodes.length === 0) return;
+            const html = contentHTML.trim() || defaultHtml();
+            nodes[0].innerHTML = html;
+            if (typeof window !== 'undefined') console.log('[collab] snapshot applied', { blogId });
+          });
+
+          client.onEdit(({ blogId, userId: fromUser, delta }) => {
+            if (!docId || blogId !== docId) return;
+            if (!delta || !Array.isArray(delta.htmlPages)) return;
+
+            const nodes = pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page");
+            if (!nodes) return;
+            delta.htmlPages.forEach((html: string, idx: number) => {
+              const n = nodes[idx];
+              if (n) n.innerHTML = html || defaultHtml();
+            });
+            if (typeof window !== 'undefined') console.log('[collab] remote edit applied', { blogId, fromUser });
+          });
         }
         collabRef.current?.join(docId, userId, null);
+        if (typeof window !== 'undefined') console.log('[collab] joined doc', { docId, userId });
       } catch {}
     })();
     return () => { mounted = false; };
@@ -392,9 +425,67 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     [title, pageSize, orientation, darkPage]
   );
 
+  const broadcastContent = useMemo(
+    () =>
+      debounce(() => {
+        try {
+          if (!docId || !collabRef.current) return;
+          const htmlPages = Array.from(
+            pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []
+          ).map((n) => n.innerHTML || defaultHtml());
+          const userId = myUserIdRef.current;
+          if (typeof window !== 'undefined') console.log('[collab] local edit broadcast', { docId, userId });
+          collabRef.current.editContent(docId, userId, { htmlPages });
+
+          if (pageContainerRef.current) {
+            const sel = window.getSelection();
+            if (sel && sel.anchorNode) {
+              const pages = Array.from(pageContainerRef.current.querySelectorAll<HTMLDivElement>(".docs-page"));
+              const pageIndex = pages.findIndex((p) => isInsideEditor(sel.anchorNode!, p));
+              const page = pageIndex >= 0 ? pages[pageIndex] : null;
+              if (page) {
+                let paraIndex = 0;
+                const paragraphs = Array.from(page.querySelectorAll<HTMLElement>('p,h1,h2,h3,h4,h5,h6'));
+                let activePara: HTMLElement | null = null;
+                paragraphs.forEach((el, idx) => {
+                  if (!activePara && isInsideEditor(sel.anchorNode!, el)) {
+                    activePara = el;
+                    paraIndex = idx;
+                  }
+                });
+                if (activePara) {
+                  const text = (activePara as HTMLElement).innerText || '';
+                  const segmentId = `${docId}-p-${pageIndex}-${paraIndex}`;
+                  collabRef.current.paragraphEdit(docId, userId, segmentId, text);
+                }
+              }
+            }
+          }
+        } catch {}
+      }, 300),
+    [docId]
+  );
+
   useEffect(() => {
     if (isDirty) saveDraft();
   }, [isDirty, saveDraft]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (!docId || !collabRef.current) return;
+      const sel = window.getSelection();
+      if (!sel || !pageContainerRef.current) return;
+
+      const loc = getCursorLocation(pageContainerRef.current, sel);
+      if (!loc) return;
+
+      const userId = myUserIdRef.current;
+      collabRef.current.updateCursor(docId, userId, loc);
+    };
+
+    document.addEventListener("selectionchange", handler);
+    return () => document.removeEventListener("selectionchange", handler);
+  }, [docId]);
 
   // Toolbar actions
   const exec = (cmd: string, value?: string) => {
@@ -738,15 +829,30 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
           ))}
         </nav>
         <div className="docs-menubar-right">
+          {Array.isArray(presence) && presence.length > 0 && (
+            <div className="docs-collab-badge">
+              {presence.map((p: any) => (
+                <div key={p.userId} className="docs-collab-user">
+                  <span className="docs-collab-avatar">{String(p.userId).slice(0, 2).toUpperCase()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {docId && (
+            <button
+              className="docs-share"
+              title="Open AI Merge Resolver for this document"
+              onClick={() => router.push(`/dashboard/merge?blogId=${docId}`)}
+            >
+              <FiZap />
+              <span>Resolve</span>
+            </button>
+          )}
           <button className="docs-share" title="AI Assistant" onClick={() => setShowAI(v=>!v)}>
             <FiZap />
             <span>AI</span>
           </button>
-          <button className="docs-menubar-icon" title="Comments"><FiMessageCircle /></button>
-          <div className="docs-share">
-            <FiLock />
-            <span>Share</span>
-          </div>
+         
         </div>
       </div>
 
@@ -924,7 +1030,7 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
               className={`docs-page editor-content ${darkPage ? "docs-page-dark" : ""}`}
               contentEditable
               suppressContentEditableWarning
-              onInput={() => setDirty(true)}
+              onInput={() => { setDirty(true); broadcastContent(); }}
               onPaste={onPaste}
               onMouseUp={updateSavedRange}
               onKeyUp={updateSavedRange}
@@ -1047,12 +1153,48 @@ function timeAgo(ts: number) {
 
 function getPageDimensions(size: PageSize, orientation: Orientation) {
   // Approx at 96dpi
-  const A4 = { w: 794, h: 1123 };
+  const A4 = { w: 950, h: 1123 };
   const Letter = { w: 816, h: 1056 };
   const base = size === "A4" ? A4 : Letter;
   const w = orientation === "portrait" ? base.w : base.h;
   const h = orientation === "portrait" ? base.h : base.w;
   return { width: `${w}px`, height: `${h}px` };
+}
+
+function isInsideEditor(node: Node | null, root: HTMLElement | null) {
+  if (!node || !root) return false;
+  let cur: Node | null = node;
+  while (cur) {
+    if (cur === root) return true;
+    cur = cur.parentNode;
+  }
+  return false;
+}
+
+function getCursorLocation(root: HTMLElement, selection: Selection) {
+  if (!selection.anchorNode) return null;
+  if (!isInsideEditor(selection.anchorNode, root)) return null;
+
+  const pages = Array.from(root.querySelectorAll<HTMLDivElement>(".docs-page"));
+  if (!pages.length) return null;
+
+  let pageIndex = pages.findIndex((p) => isInsideEditor(selection.anchorNode!, p));
+  if (pageIndex === -1) return null;
+  const page = pages[pageIndex];
+
+  let offset = 0;
+  const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
+  let node: Node | null = walker.nextNode();
+  while (node) {
+    if (node === selection.anchorNode) {
+      offset += selection.anchorOffset;
+      break;
+    }
+    offset += (node.textContent || "").length;
+    node = walker.nextNode();
+  }
+
+  return { pageIndex, offset };
 }
 
 // Insert chosen AI title into the top of the editor content as H1
@@ -1065,4 +1207,97 @@ function insertTitleIntoEditor(t: string) {
   spacer.innerHTML = "<br/>";
   first.prepend(spacer);
   first.prepend(h1);
+}
+
+function renderRemoteCursors(root: HTMLElement, presence: any, myUserId: string) {
+  const pages = Array.from(root.querySelectorAll<HTMLDivElement>(".docs-page"));
+  if (!pages.length) return;
+
+  pages.forEach((page) => {
+    page.querySelectorAll<HTMLElement>('.docs-remote-cursor').forEach((el) => el.remove());
+  });
+
+  const entries = Array.isArray(presence) ? presence : [];
+  for (const p of entries) {
+    if (!p || !p.cursor) continue;
+    const { userId, cursor } = p;
+    if (!cursor || typeof cursor.pageIndex !== 'number' || typeof cursor.offset !== 'number') continue;
+    const pageIndex = cursor.pageIndex;
+    const offset = cursor.offset;
+    const page = pages[pageIndex];
+    if (!page) continue;
+
+    let remaining = offset;
+    const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
+    let textNode: Node | null = walker.nextNode();
+    let targetNode: Node | null = null;
+    let targetOffset = 0;
+    while (textNode) {
+      const len = (textNode.textContent || '').length;
+      if (remaining <= len) {
+        targetNode = textNode;
+        targetOffset = remaining;
+        break;
+      }
+      remaining -= len;
+      textNode = walker.nextNode();
+    }
+
+    if (!targetNode) {
+      const lastText = walker.currentNode;
+      if (!lastText || !lastText.textContent) continue;
+      targetNode = lastText;
+      targetOffset = (lastText.textContent || '').length;
+    }
+
+    const range = document.createRange();
+    try {
+      range.setStart(targetNode, targetOffset);
+      range.collapse(true);
+    } catch {
+      continue;
+    }
+
+    const rects = range.getClientRects();
+    if (!rects.length) continue;
+    const rect = rects[0];
+    const pageRect = page.getBoundingClientRect();
+    const top = rect.top - pageRect.top;
+    const left = rect.left - pageRect.left;
+
+    const hue = Math.abs((userId || myUserId || '').split('').reduce((acc: number, ch: string) => acc + ch.charCodeAt(0), 0)) % 360;
+    const color = `hsl(${hue}, 80%, 50%)`;
+
+    const caret = document.createElement('div');
+    caret.className = 'docs-remote-cursor';
+    caret.style.position = 'absolute';
+    caret.style.left = `${left}px`;
+    caret.style.top = `${top - 2}px`;
+    caret.style.width = '3px';
+    caret.style.height = '22px';
+    caret.style.borderRadius = '999px';
+    caret.style.backgroundColor = color;
+    caret.style.boxShadow = `0 0 0 1px rgba(255,255,255,0.9), 0 0 4px ${color}`;
+    caret.style.zIndex = '10';
+
+    const label = document.createElement('div');
+    label.textContent = String(userId || myUserId || '?').slice(0, 2).toUpperCase();
+    label.style.position = 'absolute';
+    label.style.left = `${left + 8}px`;
+    label.style.top = `${Math.max(0, top - 22)}px`;
+    label.style.padding = '2px 6px';
+    label.style.fontSize = '11px';
+    label.style.borderRadius = '999px';
+    label.style.backgroundColor = color;
+    label.style.color = '#fff';
+    label.style.whiteSpace = 'nowrap';
+    label.style.fontWeight = '600';
+    label.style.boxShadow = '0 1px 3px rgba(15,23,42,0.45)';
+    label.style.zIndex = '10';
+    label.className = 'docs-remote-cursor';
+
+    page.style.position = page.style.position || 'relative';
+    page.appendChild(caret);
+    page.appendChild(label);
+  }
 }

@@ -28,7 +28,8 @@ export async function createAssignment(req, res, next) {
       return res.status(400).json({ success: false, message: 'title is required' });
     }
 
-    // Auto-create a draft blog to act as the underlying document for this assignment
+    const uniqueMembers = Array.from(new Set([userId, ...memberIds]));
+
     const blog = await Blog.create({
       title,
       content: '',
@@ -36,9 +37,8 @@ export async function createAssignment(req, res, next) {
       contentHTML: '',
       status: 'draft',
       author: userId,
+      collaborators: uniqueMembers,
     });
-
-    const uniqueMembers = Array.from(new Set([userId, ...memberIds]));
 
     const assignment = await Assignment.create({
       title,

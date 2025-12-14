@@ -1,5 +1,6 @@
 import { validationResult } from 'express-validator';
 import Blog from '../models/Blog.js';
+import Assignment from '../models/Assignment.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import Interaction from '../models/Interaction.js';
 import BlogVersion from '../models/BlogVersion.js';
@@ -97,7 +98,12 @@ export const getById = async (req, res) => {
     const userId = req.user?.id?.toString();
     const isOwner = userId && blog.author._id.toString() === userId;
     const isCollab = userId && blog.collaborators.map(String).includes(userId);
-    if (blog.status !== 'published' && !isOwner && !isCollab) {
+    let isAssignmentMember = false;
+    if (!isOwner && !isCollab && userId) {
+      const assignment = await Assignment.findOne({ blog: blog._id, members: userId }).select('_id');
+      isAssignmentMember = !!assignment;
+    }
+    if (blog.status !== 'published' && !isOwner && !isCollab && !isAssignmentMember) {
       return sendError(res, 403, 'Not authorized');
     }
 
@@ -144,7 +150,12 @@ export const update = async (req, res) => {
     const userId = req.user.id.toString();
     const isOwner = blog.author.toString() === userId;
     const isCollab = blog.collaborators.map(String).includes(userId);
-    if (!isOwner && !isCollab) return sendError(res, 403, 'Not authorized');
+    let isAssignmentMember = false;
+    if (!isOwner && !isCollab) {
+      const assignment = await Assignment.findOne({ blog: blog._id, members: userId }).select('_id');
+      isAssignmentMember = !!assignment;
+    }
+    if (!isOwner && !isCollab && !isAssignmentMember) return sendError(res, 403, 'Not authorized');
 
     const { title, content, contentDelta, contentHTML, tags, status, collaborators, category } = req.body;
     if (typeof title === 'string') blog.title = title;

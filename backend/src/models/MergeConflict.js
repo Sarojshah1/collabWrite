@@ -5,13 +5,13 @@ const MergeConflictSchema = new mongoose.Schema(
     blog: { type: mongoose.Schema.Types.ObjectId, ref: 'Blog', required: true, index: true },
     segmentId: { type: String, required: true, index: true },
     versionA: {
-      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-      edit: { type: mongoose.Schema.Types.ObjectId, ref: 'CollabEdit', required: true },
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      edit: { type: mongoose.Schema.Types.ObjectId, ref: 'CollabEdit' },
       text: { type: String, required: true },
     },
     versionB: {
-      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-      edit: { type: mongoose.Schema.Types.ObjectId, ref: 'CollabEdit', required: true },
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      edit: { type: mongoose.Schema.Types.ObjectId, ref: 'CollabEdit' },
       text: { type: String, required: true },
     },
     mergedText: { type: String },

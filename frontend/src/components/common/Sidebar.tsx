@@ -29,9 +29,7 @@ export default function Sidebar() {
   const primaryItems: Item[] = [
     { href: "/dashboard", label: "Home", icon: <FiHome className="h-4 w-4" /> },
     { href: "/dashboard/assignments", label: "My Assignments", icon: <FiClipboard className="h-4 w-4" /> },
-    { href: "/dashboard/shared", label: "Shared Projects", icon: <FiUsers className="h-4 w-4" /> },
     { href: "/dashboard/profile", label: "Profile", icon: <FiUser className="h-4 w-4" /> },
-    { href: "/dashboard/merge", label: "AI Merge Resolver", icon: <FiGitMerge className="h-4 w-4" /> },
     { href: "/dashboard/reports", label: "Reports & Analytics", icon: <FiBarChart2 className="h-4 w-4" /> },
   ];
 

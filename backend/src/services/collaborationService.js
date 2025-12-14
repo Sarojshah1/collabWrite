@@ -77,3 +77,12 @@ export async function saveDraft(blogId, userId, content) {
 
   return blog;
 }
+
+export async function getBlogSnapshot(blogId) {
+  const blog = await Blog.findById(blogId).lean();
+  if (!blog) return null;
+  return {
+    blogId: String(blog._id),
+    contentHTML: blog.contentHTML || blog.content || '',
+  };
+}

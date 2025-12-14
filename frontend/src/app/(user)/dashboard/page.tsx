@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const showSuggestions = searchFocused && !!trimmedSearch && suggestionBlogs.length > 0;
 
   return (
-    <section className="mx-auto max-w-6xl px-6 py-8">
+    <section className="mx-auto max-w-7xl px-6 py-8">
       <header className="mb-6 flex flex-col gap-3 border-b border-zinc-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Home</p>

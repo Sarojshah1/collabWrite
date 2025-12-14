@@ -68,7 +68,7 @@ export default function SignupPage() {
       if (typeof document !== "undefined") {
         document.cookie = "cw_auth=1; path=/; max-age=2592000"; // 30 days
       }
-      router.replace("/(user)/dashboard");
+      router.replace("/dashboard");
     } catch (e: any) {
       // Map backend validation details to inline field errors
       if (e?.status === 422 && Array.isArray(e?.details)) {
@@ -77,9 +77,9 @@ export default function SignupPage() {
           if (d?.field && d?.msg) map[d.field] = d.msg;
         }
         setFieldErrors(map);
-        setError("Please fix the highlighted fields.");
+        alert("Please fix the highlighted fields.");
       } else {
-        setError(e.message || "Signup failed");
+        alert(e?.message || "Signup failed");
       }
     } finally {
       setLoading(false);
@@ -108,12 +108,6 @@ export default function SignupPage() {
           </div>
 
           <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-6 shadow-sm sm:px-7 sm:py-7">
-            {error && (
-              <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-                {error}
-              </div>
-            )}
-
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-zinc-800">Full Name</label>
