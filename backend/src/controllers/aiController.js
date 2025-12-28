@@ -16,13 +16,13 @@ function ensureKey(res) {
     }
     return true;
   }
-  if (env.AI_PROVIDER === 'claude') {
-    if (!env.CLAUDE_API_KEY) {
-      sendError(res, 500, 'CLAUDE_API_KEY is not configured');
-      return false;
-    }
-    return true;
-  }
+  // if (env.AI_PROVIDER === 'claude') {
+  //   if (!env.CLAUDE_API_KEY) {
+  //     sendError(res, 500, 'CLAUDE_API_KEY is not configured');
+  //     return false;
+  //   }
+  //   return true;
+  // }
   if (env.AI_PROVIDER === 'gemini') {
     if (!env.GOOGLE_API_KEY) {
       sendError(res, 500, 'GOOGLE_API_KEY is not configured');

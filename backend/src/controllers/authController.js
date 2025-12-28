@@ -64,7 +64,18 @@ export const login = async (req, res) => {
 export const me = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('_id name email bio avatar followers following');
-    return sendSuccess(res, { user });
+    if (!user) return sendError(res, 404, 'User not found');
+    return sendSuccess(res, {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        bio: user.bio,
+        avatar: user.avatar,
+        followers: user.followers || [],
+        following: user.following || [],
+      },
+    });
   } catch (err) {
     return sendError(res, 500, 'Failed to fetch profile', err.message);
   }
@@ -110,7 +121,17 @@ export const updateProfile = async (req, res) => {
       .select('_id name email bio avatar followers following interests notificationSettings');
 
     if (!updated) return sendError(res, 404, 'User not found');
-    return sendSuccess(res, { user: updated });
+    return sendSuccess(res, {
+      user: {
+        id: updated._id,
+        name: updated.name,
+        email: updated.email,
+        bio: updated.bio,
+        avatar: updated.avatar,
+        followers: updated.followers || [],
+        following: updated.following || [],
+      },
+    });
   } catch (err) {
     return sendError(res, 500, 'Failed to update profile', err.message);
   }

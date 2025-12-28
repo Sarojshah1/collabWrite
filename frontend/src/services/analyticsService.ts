@@ -6,11 +6,15 @@ export type AnalyticsSummaryItem = {
 };
 
 export async function getAnalyticsSummary(days: number = 30): Promise<AnalyticsSummaryItem[]> {
-  const { data } = await http.get<{ success: boolean; data: { data: { _id: { type: string }; count: number }[] } }>(
+  const { data } = await http.get<{
+    success: boolean;
+    data: { _id: { type: string }; count: number }[] | { data: { _id: { type: string }; count: number }[] };
+  }>(
     "/analytics/summary",
     { params: { days } }
   );
-  const raw = data?.data?.data || [];
+  const anyData: any = data as any;
+  const raw = (anyData?.data?.data || anyData?.data || []) as Array<{ _id?: { type?: string }; count?: number }>;
   return raw.map((item) => ({ type: item._id?.type || "unknown", count: item.count || 0 }));
 }
 
@@ -19,11 +23,15 @@ export async function recordView(blogId: string) {
 }
 
 export async function getAuthorAnalyticsSummary(days: number = 30): Promise<AnalyticsSummaryItem[]> {
-  const { data } = await http.get<{ success: boolean; data: { data: { _id: { type: string }; count: number }[] } }>(
-    "/analytics/author-summary"
+  const { data } = await http.get<{
+    success: boolean;
+    data: { _id: { type: string }; count: number }[] | { data: { _id: { type: string }; count: number }[] };
+  }>(
+    "/analytics/author-summary",
+    { params: { days } }
   );
-  const raw = data?.data || [];
-  console.log(data)
+  const anyData: any = data as any;
+  const raw = (anyData?.data?.data || anyData?.data || []) as Array<{ _id?: { type?: string }; count?: number }>;
   return raw.map((item) => ({ type: item._id?.type || "unknown", count: item.count || 0 }));
 }
 

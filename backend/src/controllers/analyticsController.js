@@ -71,36 +71,28 @@ export const authorSummary = async (req, res) => {
       return sendError(res, 401, 'Unauthorized');
     }
 
-    // Aggregate from the Blog collection so we use the canonical
-    // per-blog counters (views and likes/bookmarks arrays) for this author.
+    const { days = '30' } = req.query;
+    const since = new Date(Date.now() - parseInt(days, 10) * 24 * 60 * 60 * 1000);
+
+    // Aggregate interactions for content authored by the user within the time window.
+    // This supports time-filtered dashboards (e.g. last 30 days) and includes comments.
     const pipeline = [
       {
         $match: {
-          author: new mongoose.Types.ObjectId(userId),
-          status: 'published',
+          createdAt: { $gte: since },
+          authorSnapshot: new mongoose.Types.ObjectId(userId),
+          type: { $in: ['view', 'like', 'bookmark', 'comment'] },
         },
       },
       {
         $group: {
-          _id: null,
-          views: { $sum: { $ifNull: ['$views', 0] } },
-          likes: { $sum: { $size: { $ifNull: ['$likes', []] } } },
-          bookmarks: { $sum: { $size: { $ifNull: ['$bookmarks', []] } } },
+          _id: { type: '$type' },
+          count: { $sum: 1 },
         },
       },
     ];
 
-    const [row] = await Blog.aggregate(pipeline);
-    const data = row
-      ? [
-          { _id: { type: 'view' }, count: row.views || 0 },
-          { _id: { type: 'like' }, count: row.likes || 0 },
-          { _id: { type: 'bookmark' }, count: row.bookmarks || 0 },
-        ]
-      : [];
-
-      console.log(data)
-
+    const data = await Interaction.aggregate(pipeline);
     return sendSuccess(res, { data });
   } catch (err) {
     return sendError(res, 500, 'Failed to fetch author summary', err.message);

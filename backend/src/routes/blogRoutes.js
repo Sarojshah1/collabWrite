@@ -7,6 +7,9 @@ import {
   validateListBlogs,
   validateCreateBlog,
   validateGetBlog,
+  validateToggleLike,
+  validateListComments,
+  validateAddComment,
   validateUpdateBlog,
   validateDeleteBlog,
   validateListVersions,
@@ -24,6 +27,10 @@ router.post('/', authMiddleware, validateCreateBlog, validate, blog.create);
 router.post('/upload-image', authMiddleware, uploadMiddleware, uploadMedia);
 
 router.get('/:id', validateGetBlog, validate, authMiddleware, blog.getById);
+
+router.post('/:id/like', authMiddleware, validateToggleLike, validate, blog.toggleLike);
+router.get('/:id/comments', authMiddleware, validateListComments, validate, blog.listComments);
+router.post('/:id/comments', authMiddleware, validateAddComment, validate, blog.addComment);
 
 router.get('/:id/realtime', validateGetBlog, validate, authMiddleware, blog.realtimeInfo);
 router.put('/:id', authMiddleware, validateUpdateBlog, validate, blog.update);

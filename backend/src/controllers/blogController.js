@@ -65,21 +65,22 @@ export const list = async (req, res) => {
     const { q, tag, author, status, sort = 'newest' } = req.query;
     const filter = {};
     if (status) filter.status = status;
-    if (tag) filter.tags = tag;
+    if (tag) filter.tags = { $in: [tag] };
     if (author) filter.author = author;
     if (q) filter.title = { $regex: q, $options: 'i' };
 
+    const userId = req.user?.id;
     // Only show published to unauthenticated; for authenticated, show own drafts too
-    filter.$or = [
-      { status: 'published' },
-      { author: req.user?.id },
-      { collaborators: req.user?.id },
-    ];
+    if (userId) {
+      filter.$or = [{ status: 'published' }, { author: userId }, { collaborators: userId }];
+    } else {
+      filter.status = 'published';
+    }
 
     let query = Blog.find(filter).select('-content -contentDelta -contentHTML').populate('author', 'name avatar');
     if (sort === 'newest') query = query.sort({ createdAt: -1 });
     if (sort === 'mostViewed') query = query.sort({ views: -1 });
-    if (sort === 'trending') query = query.sort({ likesCount: -1, views: -1 });
+    if (sort === 'trending') query = query.sort({ views: -1, createdAt: -1 });
 
     const blogs = await query.exec();
     return sendSuccess(res, { blogs });
@@ -91,7 +92,7 @@ export const list = async (req, res) => {
 export const getById = async (req, res) => {
   if (!handleValidation(req, res)) return;
   try {
-    const blog = await Blog.findById(req.params.id).populate('author', 'name');
+    const blog = await Blog.findById(req.params.id).populate('author', 'name avatar');
     if (!blog) return sendError(res, 404, 'Blog not found');
 
     // Authorization: allow if published or user is author/collaborator
@@ -138,6 +139,124 @@ export const getById = async (req, res) => {
     return sendSuccess(res, { blog });
   } catch (err) {
     return sendError(res, 500, 'Failed to fetch blog', err.message);
+  }
+};
+
+export const toggleLike = async (req, res) => {
+  if (!handleValidation(req, res)) return;
+  try {
+    const userId = req.user?.id;
+    if (!userId) return sendError(res, 401, 'Unauthorized');
+
+    const blog = await Blog.findById(req.params.id).select('_id likes status author collaborators tags');
+    if (!blog) return sendError(res, 404, 'Blog not found');
+
+    // Authorization: allow liking if published or user is author/collaborator
+    const uid = userId.toString();
+    const isOwner = blog.author?.toString() === uid;
+    const isCollab = Array.isArray(blog.collaborators) && blog.collaborators.map(String).includes(uid);
+    if (blog.status !== 'published' && !isOwner && !isCollab) {
+      return sendError(res, 403, 'Not authorized');
+    }
+
+    const likesArr = Array.isArray(blog.likes) ? blog.likes.map(String) : [];
+    const already = likesArr.includes(uid);
+    if (already) {
+      blog.likes = blog.likes.filter((x) => x.toString() !== uid);
+    } else {
+      blog.likes.push(uid);
+    }
+    await blog.save();
+
+    try {
+      if (!already) {
+        await Interaction.create({
+          user: uid,
+          blog: blog._id,
+          type: 'like',
+          tagsSnapshot: blog.tags || [],
+          authorSnapshot: blog.author,
+          meta: { toggled: true },
+        });
+      }
+    } catch (e) {
+      // Non-blocking analytics error
+    }
+
+    return sendSuccess(res, { liked: !already, likesCount: Array.isArray(blog.likes) ? blog.likes.length : 0 });
+  } catch (err) {
+    return sendError(res, 500, 'Failed to toggle like', err.message);
+  }
+};
+
+export const listComments = async (req, res) => {
+  if (!handleValidation(req, res)) return;
+  try {
+    const blog = await Blog.findById(req.params.id).select('_id status author collaborators');
+    if (!blog) return sendError(res, 404, 'Blog not found');
+
+    const userId = req.user?.id?.toString();
+    const isOwner = userId && blog.author?.toString() === userId;
+    const isCollab = userId && Array.isArray(blog.collaborators) && blog.collaborators.map(String).includes(userId);
+    if (blog.status !== 'published' && !isOwner && !isCollab) {
+      return sendError(res, 403, 'Not authorized');
+    }
+
+    const limit = Math.min(100, Math.max(1, parseInt((req.query.limit || '50').toString(), 10) || 50));
+    const rows = await Interaction.find({ blog: blog._id, type: 'comment' })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('user', 'name avatar');
+
+    const comments = rows.map((r) => ({
+      id: r._id,
+      text: r.meta?.text || '',
+      createdAt: r.createdAt,
+      user: r.user ? { id: r.user._id, name: r.user.name, avatar: r.user.avatar || '' } : null,
+    }));
+
+    return sendSuccess(res, { comments });
+  } catch (err) {
+    return sendError(res, 500, 'Failed to list comments', err.message);
+  }
+};
+
+export const addComment = async (req, res) => {
+  if (!handleValidation(req, res)) return;
+  try {
+    const userId = req.user?.id;
+    if (!userId) return sendError(res, 401, 'Unauthorized');
+    const text = (req.body?.text || '').toString().trim();
+    if (!text) return sendError(res, 400, 'text is required');
+
+    const blog = await Blog.findById(req.params.id).select('_id tags author status collaborators');
+    if (!blog) return sendError(res, 404, 'Blog not found');
+
+    const uid = userId.toString();
+    const isOwner = blog.author?.toString() === uid;
+    const isCollab = Array.isArray(blog.collaborators) && blog.collaborators.map(String).includes(uid);
+    if (blog.status !== 'published' && !isOwner && !isCollab) {
+      return sendError(res, 403, 'Not authorized');
+    }
+
+    const doc = await Interaction.create({
+      user: uid,
+      blog: blog._id,
+      type: 'comment',
+      tagsSnapshot: blog.tags || [],
+      authorSnapshot: blog.author,
+      meta: { text },
+    });
+
+    return sendSuccess(res, {
+      comment: {
+        id: doc._id,
+        text,
+        createdAt: doc.createdAt,
+      },
+    }, 201);
+  } catch (err) {
+    return sendError(res, 500, 'Failed to add comment', err.message);
   }
 };
 

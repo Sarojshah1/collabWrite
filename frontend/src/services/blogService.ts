@@ -86,6 +86,26 @@ export async function getBlog(id: string) {
   return parsed.blog;
 }
 
+export async function toggleLike(blogId: string): Promise<{ liked: boolean; likesCount: number }> {
+  const { data } = await http.post<ApiSuccess<{ liked: boolean; likesCount: number }>>(`/blog/${blogId}/like`);
+  return { liked: !!data.liked, likesCount: typeof data.likesCount === "number" ? data.likesCount : 0 };
+}
+
+export type BlogCommentUser = { id: string; name: string; avatar?: string };
+export type BlogComment = { id: string; text: string; createdAt: string; user: BlogCommentUser | null };
+
+export async function listComments(blogId: string, limit: number = 50): Promise<BlogComment[]> {
+  const { data } = await http.get<ApiSuccess<{ comments: BlogComment[] }>>(`/blog/${blogId}/comments`, { params: { limit } });
+  return Array.isArray(data.comments) ? data.comments : [];
+}
+
+export async function addComment(blogId: string, text: string): Promise<{ id: string; text: string; createdAt: string }> {
+  const { data } = await http.post<ApiSuccess<{ comment: { id: string; text: string; createdAt: string } }>>(`/blog/${blogId}/comments`, {
+    text,
+  });
+  return data.comment;
+}
+
 export async function updateBlog(params: { id: string; title?: string; htmlPages?: string[]; status?: BlogStatus }) {
   const body: any = {};
   if (typeof params.title === "string") body.title = params.title;

@@ -9,6 +9,8 @@ export const authUserSchema = z.object({
     .string()
     .optional()
     .nullable(),
+  followers: z.array(z.any()).optional().nullable(),
+  following: z.array(z.any()).optional().nullable(),
 });
 
 export type AuthUserSchema = typeof authUserSchema;

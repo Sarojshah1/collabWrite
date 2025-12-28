@@ -23,6 +23,20 @@ export const validateGetBlog = [
   param('id').isMongoId(),
 ];
 
+export const validateToggleLike = [
+  param('id').isMongoId(),
+];
+
+export const validateListComments = [
+  param('id').isMongoId(),
+  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+];
+
+export const validateAddComment = [
+  param('id').isMongoId(),
+  body('text').isString().trim().notEmpty(),
+];
+
 export const validateUpdateBlog = [
   param('id').isMongoId(),
   body('title').optional().isString(),
