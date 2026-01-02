@@ -66,7 +66,10 @@ export default function Features() {
       <div className="mx-auto max-w-6xl px-2 sm:px-6">
         <div className="text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700">
-            <span className="inline-block size-1.5 rounded-full" style={{ backgroundColor: "var(--color-secondary)" }} />
+            <span
+              className="inline-block size-1.5 rounded-full"
+              style={{ backgroundColor: "var(--color-secondary)" }}
+            />
             What you get
           </span>
           <h2 className="mt-4 text-2xl sm:text-3xl md:text-4xl font-[var(--font-display)] font-bold tracking-tight text-black">
@@ -88,10 +91,11 @@ export default function Features() {
             <motion.div key={f.title} variants={item}>
               <div
                 className="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-transform duration-300 hover:-translate-y-1"
-                style={{
-                  // @ts-ignore custom css var for accent
-                  ["--accent" as any]: ACCENTS[i % ACCENTS.length],
-                }}
+                style={
+                  {
+                    "--accent": ACCENTS[i % ACCENTS.length],
+                  } as React.CSSProperties
+                }
                 onMouseMove={handleMove}
               >
                 {/* glow */}
@@ -110,17 +114,37 @@ export default function Features() {
                       return <IconComp className="h-5 w-5" />;
                     })()}
                   </div>
-                  <h3 className="mt-4 text-base font-semibold text-zinc-900">{f.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-700">{f.desc}</p>
+                  <h3 className="mt-4 text-base font-semibold text-zinc-900">
+                    {f.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-700">
+                    {f.desc}
+                  </p>
                   <div className="mt-4 flex items-center justify-between text-xs text-zinc-600">
                     <span className="inline-flex items-center gap-2">
-                      <span className="inline-block size-2 rounded-full" style={{ backgroundColor: ACCENTS[i % ACCENTS.length] }} />
+                      <span
+                        className="inline-block size-2 rounded-full"
+                        style={{ backgroundColor: ACCENTS[i % ACCENTS.length] }}
+                      />
                       Built for teams
                     </span>
-                    <a href="#" className="inline-flex items-center gap-1 hover:text-zinc-900">
+                    <a
+                      href="#"
+                      className="inline-flex items-center gap-1 hover:text-zinc-900"
+                    >
                       Learn more
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12h14" />
+                        <path d="M12 5l7 7-7 7" />
                       </svg>
                     </a>
                   </div>

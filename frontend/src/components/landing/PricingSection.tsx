@@ -37,11 +37,17 @@ function PricingCard({
       </div>
       <p className="mt-1 text-xs text-zinc-600">{description}</p>
       <div className="mt-4 flex items-baseline gap-2">
-        <span className="text-2xl font-[var(--font-display)] text-zinc-900">{price}</span>
+        <span className="text-2xl font-[var(--font-display)] text-zinc-900">
+          {price}
+        </span>
         {highlight ? (
-          <span className="text-[11px] text-zinc-600">per student, forever</span>
+          <span className="text-[11px] text-zinc-600">
+            per student, forever
+          </span>
         ) : (
-          <span className="text-[11px] text-zinc-600">contact for campus pricing</span>
+          <span className="text-[11px] text-zinc-600">
+            contact for campus pricing
+          </span>
         )}
       </div>
       <ul className="mt-3 space-y-1.5 text-xs text-zinc-700">
@@ -54,7 +60,9 @@ function PricingCard({
       </ul>
       <a
         href={href}
-        onClick={() => trackEvent("cta_start_assignment_click", { plan: label })}
+        onClick={() =>
+          trackEvent("cta_start_assignment_click", { plan: label })
+        }
         className={`mt-5 inline-flex items-center justify-center rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
           highlight
             ? "bg-blue-600 text-white hover:bg-blue-700"
@@ -69,7 +77,11 @@ function PricingCard({
 
 export default function PricingSection() {
   return (
-    <section id="pricing" className="py-16 bg-gradient-to-b from-white via-white to-zinc-50" aria-label="Pricing">
+    <section
+      id="pricing"
+      className="py-16 bg-gradient-to-b from-white via-white to-zinc-50"
+      aria-label="Pricing"
+    >
       <div className="mx-auto max-w-6xl px-6">
         <div className="text-center mb-10">
           <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700">
@@ -83,8 +95,8 @@ export default function PricingSection() {
             Start free, upgrade when your class needs it
           </h2>
           <p className="mt-2 text-sm sm:text-base text-zinc-700 max-w-2xl mx-auto">
-            Students get core features free with verification. Faculty and classrooms can unlock advanced dashboards
-            when you\'re ready.
+            Students get core features free with verification. Faculty and
+            classrooms can unlock advanced dashboards when you&apos;re ready.
           </p>
         </div>
 

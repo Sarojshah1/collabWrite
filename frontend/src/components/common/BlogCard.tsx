@@ -17,17 +17,25 @@ export type BlogCardProps = {
   likesCount?: number;
   commentsCount?: number;
   href?: string;
+  id?: string;
+  isBookmarked?: boolean;
+  onToggleBookmark?: (id: string) => void;
 };
 
 // Fallback Constants
-const FALLBACK_AVATAR = "https://ui-avatars.com/api/?name=User&background=random"; // Or a local path like "/default-avatar.png"
+const FALLBACK_AVATAR =
+  "https://ui-avatars.com/api/?name=User&background=random"; // Or a local path like "/default-avatar.png"
 
 function formatDate(input?: string | Date) {
   if (!input) return undefined;
   try {
     const d = typeof input === "string" ? new Date(input) : input;
     if (Number.isNaN(d.getTime())) return undefined;
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return d.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   } catch {
     return undefined;
   }
@@ -43,11 +51,13 @@ function formatRelative(input?: string | Date) {
     if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins} min ago`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hr${diffHours === 1 ? "" : "s"} ago`;
+    if (diffHours < 24)
+      return `${diffHours} hr${diffHours === 1 ? "" : "s"} ago`;
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
     const diffWeeks = Math.floor(diffDays / 7);
-    if (diffWeeks < 5) return `${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`;
+    if (diffWeeks < 5)
+      return `${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`;
     return formatDate(d);
   } catch {
     return undefined;
@@ -68,18 +78,24 @@ export default function BlogCard({
   likesCount = 0,
   commentsCount = 0,
   href,
+  id,
+  isBookmarked,
+  onToggleBookmark,
 }: BlogCardProps) {
   const [avatarSrc, setAvatarSrc] = useState(authorAvatar || FALLBACK_AVATAR);
   const relativeLabel = formatRelative(publishedAt);
   const updatedLabel = formatRelative(updatedAt);
-  const safeProgress = typeof progress === "number" ? Math.min(100, Math.max(0, progress)) : undefined;
+  const safeProgress =
+    typeof progress === "number"
+      ? Math.min(100, Math.max(0, progress))
+      : undefined;
 
   const statusClass =
     status === "Published"
       ? "bg-zinc-100 text-zinc-700"
       : status === "Needs Review"
-        ? "bg-zinc-100 text-zinc-700"
-        : "bg-zinc-100 text-zinc-700";
+      ? "bg-zinc-100 text-zinc-700"
+      : "bg-zinc-100 text-zinc-700";
 
   return (
     <article className="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:shadow-md">
@@ -108,9 +124,38 @@ export default function BlogCard({
             </div>
           </div>
 
-          <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-medium ring-1 ring-inset ring-zinc-200 ${statusClass}`}>
+          <span
+            className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-medium ring-1 ring-inset ring-zinc-200 ${statusClass}`}
+          >
             {status}
           </span>
+        </div>
+
+        <div className="absolute right-4 top-4 z-20">
+          {onToggleBookmark && id && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onToggleBookmark(id);
+              }}
+              className="rounded-full bg-white/80 p-2 text-zinc-400 hover:text-yellow-500 hover:bg-white transition"
+              title={isBookmarked ? "Remove bookmark" : "Bookmark"}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill={isBookmarked ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isBookmarked ? "text-yellow-500" : ""}
+              >
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </button>
+          )}
         </div>
 
         <h3 className="mt-2 line-clamp-2 text-lg font-semibold text-zinc-900 group-hover:underline">
@@ -147,7 +192,10 @@ export default function BlogCard({
 
         <div className="mt-3 flex items-center gap-3">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-inset ring-zinc-200">
-            <div className="h-full rounded-full bg-zinc-700" style={{ width: `${safeProgress ?? 55}%` }} />
+            <div
+              className="h-full rounded-full bg-zinc-700"
+              style={{ width: `${safeProgress ?? 55}%` }}
+            />
           </div>
 
           <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -167,7 +215,10 @@ export default function BlogCard({
               ))}
             </div>
 
-            <span className="inline-flex items-center gap-1" aria-label="Comments">
+            <span
+              className="inline-flex items-center gap-1"
+              aria-label="Comments"
+            >
               <span className="font-medium text-zinc-700">{commentsCount}</span>
               <span className="text-zinc-400">comments</span>
             </span>

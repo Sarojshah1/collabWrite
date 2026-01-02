@@ -2,14 +2,14 @@ import type { Socket } from 'socket.io-client';
 
 export type CollabClient = {
   socket: Socket;
-  join: (blogId: string, userId: string, cursor?: any) => void;
+  join: (blogId: string, userId: string, cursor?: unknown) => void;
   leave: (blogId: string, userId: string) => void;
-  updateCursor: (blogId: string, userId: string, cursor: any) => void;
+  updateCursor: (blogId: string, userId: string, cursor: unknown) => void;
   saveDraft: (blogId: string, userId: string, content: { contentHTML?: string }) => void;
-  onPresence: (cb: (presence: any) => void) => void;
+  onPresence: (cb: (presence: unknown) => void) => void;
   onSaved: (cb: (info: { blogId: string; updatedAt: string | number }) => void) => void;
-  editContent: (blogId: string, userId: string, delta: any) => void;
-  onEdit: (cb: (data: { blogId: string; userId: string; delta: any }) => void) => void;
+  editContent: (blogId: string, userId: string, delta: unknown) => void;
+  onEdit: (cb: (data: { blogId: string; userId: string; delta: unknown }) => void) => void;
   onSnapshot: (cb: (data: { blogId: string; contentHTML?: string }) => void) => void;
   paragraphEdit: (blogId: string, userId: string, segmentId: string, text: string) => void;
   disconnect: () => void;
@@ -50,13 +50,13 @@ export async function connectCollab(): Promise<CollabClient> {
     updateCursor: (blogId, userId, cursor) => socket.emit('cursorUpdate', { blogId, userId, cursor }),
     saveDraft: (blogId, userId, content) => socket.emit('saveDraft', { blogId, userId, content }),
     onPresence: (cb) => { socket.on('presenceUpdate', cb); },
-    onSaved: (cb) => { socket.on('saved', cb as any); },
+    onSaved: (cb) => { socket.on('saved', cb as (data: unknown) => void); },
     editContent: (blogId, userId, delta) => socket.emit('editContent', { blogId, userId, delta }),
     onEdit: (cb) => {
-      socket.on('editContent', (payload: any) => cb(payload));
+      socket.on('editContent', (payload: unknown) => cb(payload as { blogId: string; userId: string; delta: unknown }));
     },
     onSnapshot: (cb) => {
-      socket.on('contentSnapshot', (payload: any) => cb(payload));
+      socket.on('contentSnapshot', (payload: unknown) => cb(payload as { blogId: string; contentHTML?: string }));
     },
     paragraphEdit: (blogId, userId, segmentId, text) =>
       socket.emit('paragraphEdit', { blogId, userId, segmentId, text }),

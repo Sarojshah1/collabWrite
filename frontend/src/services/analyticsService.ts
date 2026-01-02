@@ -13,7 +13,7 @@ export async function getAnalyticsSummary(days: number = 30): Promise<AnalyticsS
     "/analytics/summary",
     { params: { days } }
   );
-  const anyData: any = data as any;
+  const anyData = data as unknown as Record<string, unknown>;
   const raw = (anyData?.data?.data || anyData?.data || []) as Array<{ _id?: { type?: string }; count?: number }>;
   return raw.map((item) => ({ type: item._id?.type || "unknown", count: item.count || 0 }));
 }
@@ -30,7 +30,7 @@ export async function getAuthorAnalyticsSummary(days: number = 30): Promise<Anal
     "/analytics/author-summary",
     { params: { days } }
   );
-  const anyData: any = data as any;
+  const anyData = data as unknown as Record<string, unknown>;
   const raw = (anyData?.data?.data || anyData?.data || []) as Array<{ _id?: { type?: string }; count?: number }>;
   return raw.map((item) => ({ type: item._id?.type || "unknown", count: item.count || 0 }));
 }

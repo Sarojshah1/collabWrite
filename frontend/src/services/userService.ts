@@ -26,4 +26,14 @@ export const userService = {
     );
     return data.users.map((u) => ({ id: u._id, name: u.name, email: u.email, avatar: u.avatar || "" }));
   },
+  async getSavedBlogs(): Promise<Array<{ _id: string; title: string; author: { name: string }; createdAt: string }>> {
+    const { listBlogs } = await import("./blogService");
+    const blogs = await listBlogs({ saved: "true" });
+    return blogs.map(b => ({
+      _id: b._id,
+      title: b.title,
+      author: b.author,
+      createdAt: b.createdAt
+    }));
+  },
 };

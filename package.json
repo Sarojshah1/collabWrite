@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.18.3",
   "scripts": {
     "install:all": "pnpm install",
-    "dev": "nodemon --watch src src/server.js",
+    "dev": "pnpm -r --parallel --stream run dev",
     "build": "pnpm -r run build",
     "start": "pnpm -r --parallel run start",
     "lint": "pnpm -r run lint",

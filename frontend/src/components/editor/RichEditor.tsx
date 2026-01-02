@@ -46,7 +46,11 @@ export default function RichEditor() {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved) as { title: string; html: string; ts: number };
+        const parsed = JSON.parse(saved) as {
+          title: string;
+          html: string;
+          ts: number;
+        };
         // Show non-blocking restore bar
         setShowRestore(true);
         // Pre-fill title to provide context
@@ -59,13 +63,16 @@ export default function RichEditor() {
     () =>
       debounce(() => {
         try {
-          const payload = { title, html: editorRef.current?.innerHTML || html, ts: Date.now() };
+          const payload = {
+            title,
+            html: editorRef.current?.innerHTML || html,
+            ts: Date.now(),
+          };
           localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
           setSavedAt(Date.now());
           setDirty(false);
         } catch {}
       }, 800),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [title, html]
   );
 
@@ -144,11 +151,16 @@ export default function RichEditor() {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
       if (!saved) return setShowRestore(false);
-      const parsed = JSON.parse(saved) as { title: string; html: string; ts: number };
+      const parsed = JSON.parse(saved) as {
+        title: string;
+        html: string;
+        ts: number;
+      };
       setTitle(parsed.title || "");
       setHtml(parsed.html || "<p><br/></p>");
       // set content into editor
-      if (editorRef.current) editorRef.current.innerHTML = parsed.html || "<p><br/></p>";
+      if (editorRef.current)
+        editorRef.current.innerHTML = parsed.html || "<p><br/></p>";
     } catch {}
     setShowRestore(false);
   };
@@ -166,8 +178,18 @@ export default function RichEditor() {
         <div className="mb-3 flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
           <div className="text-sm">A previous draft was found. Restore it?</div>
           <div className="flex items-center gap-2">
-            <button onClick={restoreDraft} className="px-2 py-1 rounded-md bg-amber-600 text-white text-sm">Restore</button>
-            <button onClick={clearDraft} className="px-2 py-1 rounded-md border border-amber-600 text-amber-700 text-sm">Dismiss</button>
+            <button
+              onClick={restoreDraft}
+              className="px-2 py-1 rounded-md bg-amber-600 text-white text-sm"
+            >
+              Restore
+            </button>
+            <button
+              onClick={clearDraft}
+              className="px-2 py-1 rounded-md border border-amber-600 text-amber-700 text-sm"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       )}
@@ -180,7 +202,9 @@ export default function RichEditor() {
           aria-label="Heading level"
         >
           {HEADINGS.map((h) => (
-            <option key={h.value} value={h.value}>{h.label}</option>
+            <option key={h.value} value={h.value}>
+              {h.label}
+            </option>
           ))}
         </select>
 
@@ -191,7 +215,9 @@ export default function RichEditor() {
           aria-label="Font family"
         >
           {FONT_FAMILIES.map((f) => (
-            <option key={f} value={f}>{f.split(",")[0]}</option>
+            <option key={f} value={f}>
+              {f.split(",")[0]}
+            </option>
           ))}
         </select>
 
@@ -202,33 +228,95 @@ export default function RichEditor() {
           aria-label="Font size"
         >
           {FONT_SIZES.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
           ))}
         </select>
 
         {/* Inline styles */}
-        <ToolbarButton onClick={() => exec("bold")} label="B" title="Bold" className="font-bold" />
-        <ToolbarButton onClick={() => exec("italic")} label="I" title="Italic" className="italic" />
-        <ToolbarButton onClick={() => exec("underline")} label="U" title="Underline" className="underline" />
-        <ToolbarButton onClick={() => exec("strikeThrough")} label="S" title="Strikethrough" className="line-through" />
+        <ToolbarButton
+          onClick={() => exec("bold")}
+          label="B"
+          title="Bold"
+          className="font-bold"
+        />
+        <ToolbarButton
+          onClick={() => exec("italic")}
+          label="I"
+          title="Italic"
+          className="italic"
+        />
+        <ToolbarButton
+          onClick={() => exec("underline")}
+          label="U"
+          title="Underline"
+          className="underline"
+        />
+        <ToolbarButton
+          onClick={() => exec("strikeThrough")}
+          label="S"
+          title="Strikethrough"
+          className="line-through"
+        />
 
         {/* Lists */}
-        <ToolbarButton onClick={() => exec("insertUnorderedList")} label="• List" title="Bulleted list" />
-        <ToolbarButton onClick={() => exec("insertOrderedList")} label="1. List" title="Numbered list" />
+        <ToolbarButton
+          onClick={() => exec("insertUnorderedList")}
+          label="• List"
+          title="Bulleted list"
+        />
+        <ToolbarButton
+          onClick={() => exec("insertOrderedList")}
+          label="1. List"
+          title="Numbered list"
+        />
 
         {/* Indent */}
-        <ToolbarButton onClick={() => exec("outdent")} label="Outdent" title="Outdent" />
-        <ToolbarButton onClick={() => exec("indent")} label="Indent" title="Indent" />
+        <ToolbarButton
+          onClick={() => exec("outdent")}
+          label="Outdent"
+          title="Outdent"
+        />
+        <ToolbarButton
+          onClick={() => exec("indent")}
+          label="Indent"
+          title="Indent"
+        />
 
         {/* Align */}
-        <ToolbarButton onClick={() => exec("justifyLeft")} label="Left" title="Align left" />
-        <ToolbarButton onClick={() => exec("justifyCenter")} label="Center" title="Align center" />
-        <ToolbarButton onClick={() => exec("justifyRight")} label="Right" title="Align right" />
-        <ToolbarButton onClick={() => exec("justifyFull")} label="Justify" title="Justify" />
+        <ToolbarButton
+          onClick={() => exec("justifyLeft")}
+          label="Left"
+          title="Align left"
+        />
+        <ToolbarButton
+          onClick={() => exec("justifyCenter")}
+          label="Center"
+          title="Align center"
+        />
+        <ToolbarButton
+          onClick={() => exec("justifyRight")}
+          label="Right"
+          title="Align right"
+        />
+        <ToolbarButton
+          onClick={() => exec("justifyFull")}
+          label="Justify"
+          title="Justify"
+        />
 
         {/* Quote & Code */}
-        <ToolbarButton onClick={() => applyHeading("BLOCKQUOTE")} label="> Quote" title="Blockquote" />
-        <ToolbarButton onClick={() => exec("formatBlock", "PRE")} label="Code" title="Code block" />
+        <ToolbarButton
+          onClick={() => applyHeading("BLOCKQUOTE")}
+          label="> Quote"
+          title="Blockquote"
+        />
+        <ToolbarButton
+          onClick={() => exec("formatBlock", "PRE")}
+          label="Code"
+          title="Code block"
+        />
 
         {/* Colors */}
         <label className="inline-flex items-center gap-1 text-xs text-zinc-500">
@@ -242,13 +330,31 @@ export default function RichEditor() {
 
         {/* Link & Image */}
         <ToolbarButton onClick={createLink} label="Link" title="Insert link" />
-        <ToolbarButton onClick={onPickImage} label="Image" title="Insert image" />
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+        <ToolbarButton
+          onClick={onPickImage}
+          label="Image"
+          title="Insert image"
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onFileChange}
+        />
 
         {/* Undo/Redo */}
         <div className="ml-auto flex items-center gap-2">
-          <ToolbarButton onClick={() => exec("undo")} label="Undo" title="Undo" />
-          <ToolbarButton onClick={() => exec("redo")} label="Redo" title="Redo" />
+          <ToolbarButton
+            onClick={() => exec("undo")}
+            label="Undo"
+            title="Undo"
+          />
+          <ToolbarButton
+            onClick={() => exec("redo")}
+            label="Redo"
+            title="Redo"
+          />
         </div>
       </div>
 
@@ -283,7 +389,11 @@ export default function RichEditor() {
           onClick={() => {
             // For now, saving just writes to localStorage and marks clean
             try {
-              const payload = { title, html: editorRef.current?.innerHTML || html, ts: Date.now() };
+              const payload = {
+                title,
+                html: editorRef.current?.innerHTML || html,
+                ts: Date.now(),
+              };
               localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
               setSavedAt(Date.now());
               setDirty(false);
@@ -310,21 +420,33 @@ export default function RichEditor() {
   );
 }
 
-function ToolbarButton({ onClick, label, title, className }: { onClick: () => void; label: string; title?: string; className?: string }) {
+function ToolbarButton({
+  onClick,
+  label,
+  title,
+  className,
+}: {
+  onClick: () => void;
+  label: string;
+  title?: string;
+  className?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
-      className={`h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm hover:bg-zinc-50 ${className ?? ""}`}
+      className={`h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm hover:bg-zinc-50 ${
+        className ?? ""
+      }`}
     >
       {label}
     </button>
   );
 }
 
-function debounce<T extends (...args: any[]) => void>(fn: T, wait = 300) {
-  let t: any;
+function debounce<T extends (...args: unknown[]) => void>(fn: T, wait = 300) {
+  let t: ReturnType<typeof setTimeout>;
   return (...args: Parameters<T>) => {
     clearTimeout(t);
     t = setTimeout(() => fn(...args), wait);

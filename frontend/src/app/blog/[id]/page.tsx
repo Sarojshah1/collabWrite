@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { addComment, getBlog, listComments, toggleLike, type Blog, type BlogComment } from "@/services/blogService";
+import {
+  addComment,
+  getBlog,
+  listComments,
+  toggleLike,
+  type Blog,
+  type BlogComment,
+} from "@/services/blogService";
 import Sidebar from "@/components/common/Sidebar";
 
 function getUserIdFromToken(): string | null {
@@ -45,15 +52,15 @@ export default function ReadBlogPage() {
         const b = await getBlog(id);
         const c = await listComments(id, 50);
         if (!mounted) return;
-        setBlog(b as any);
+        if (mounted) setBlog(b);
         setComments(c);
-        const rawLikes = (b as any)?.likes;
+        const rawLikes = b?.likes;
         const likesArr = Array.isArray(rawLikes) ? rawLikes.map(String) : [];
         setLikesCount(likesArr.length);
         const uid = getUserIdFromToken();
         setLiked(uid ? likesArr.includes(uid) : false);
-      } catch (e: any) {
-        if (mounted) setError(e?.message || "Failed to load blog");
+      } catch (e: unknown) {
+        if (mounted) setError((e as Error)?.message || "Failed to load blog");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -75,14 +82,21 @@ export default function ReadBlogPage() {
   })();
 
   const safeAuthor =
-    typeof blog?.author === "object" && blog.author && "name" in blog.author && typeof blog.author.name === "string"
+    typeof blog?.author === "object" &&
+    blog.author &&
+    "name" in blog.author &&
+    typeof blog.author.name === "string"
       ? blog.author.name
       : "Unknown";
 
   const publishedLabel = (() => {
     const d = blog?.createdAt ? new Date(blog.createdAt) : null;
     if (!d || Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    return d.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   })();
 
   const derivedInsights = [
@@ -110,7 +124,9 @@ export default function ReadBlogPage() {
                 <span>›</span>
                 <span>Articles</span>
                 <span>›</span>
-                <span className="max-w-[220px] truncate text-zinc-700">{blog?.title || "Article"}</span>
+                <span className="max-w-[220px] truncate text-zinc-700">
+                  {blog?.title || "Article"}
+                </span>
               </div>
 
               <div className="flex items-center gap-3">
@@ -122,7 +138,13 @@ export default function ReadBlogPage() {
                     className="h-9 w-full rounded-full border border-zinc-200 bg-white px-4 pr-10 text-sm text-zinc-800 shadow-sm outline-none"
                   />
                   <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-zinc-400">
-                    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg
+                      aria-hidden="true"
+                      className="h-4 w-4"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
                       <path
                         d="M9 3.5A5.5 5.5 0 1 1 3.5 9 5.5 5.5 0 0 1 9 3.5Zm0-1.5a7 7 0 1 0 4.38 12.46l2.83 2.83a1 1 0 0 0 1.42-1.42l-2.83-2.83A7 7 0 0 0 9 2Z"
                         fill="currentColor"
@@ -149,13 +171,21 @@ export default function ReadBlogPage() {
             <span className="hidden sm:inline">/</span>
             <span>Articles</span>
             <span className="hidden sm:inline">/</span>
-            <span className="max-w-[320px] truncate text-zinc-700">{blog?.title || ""}</span>
+            <span className="max-w-[320px] truncate text-zinc-700">
+              {blog?.title || ""}
+            </span>
           </div>
 
-          {loading && <div className="mt-10 text-sm text-zinc-600">Loading article...</div>}
+          {loading && (
+            <div className="mt-10 text-sm text-zinc-600">
+              Loading article...
+            </div>
+          )}
 
           {error && !loading && (
-            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error}</div>
+            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
+              {error}
+            </div>
           )}
 
           {!loading && !error && blog && (
@@ -163,20 +193,31 @@ export default function ReadBlogPage() {
               <article className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h1 className="text-4xl font-semibold tracking-tight text-zinc-900" style={{ fontFamily: "var(--font-display)" }}>
+                    <h1
+                      className="text-4xl font-semibold tracking-tight text-zinc-900"
+                      style={{ fontFamily: "var(--font-display)" }}
+                    >
                       {blog.title}
                     </h1>
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-600">
                       <span className="inline-flex h-9 w-9 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-inset ring-zinc-200">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={typeof blog.author === "object" && blog.author && "avatar" in blog.author ? blog.author.avatar || "/logo.svg" : "/logo.svg"}
+                          src={
+                            typeof blog.author === "object" &&
+                            blog.author &&
+                            "avatar" in blog.author
+                              ? blog.author.avatar || "/logo.svg"
+                              : "/logo.svg"
+                          }
                           alt={safeAuthor}
                           className="h-full w-full object-cover"
                         />
                       </span>
                       <div className="flex flex-col">
-                        <span className="text-[13px] font-medium text-zinc-900">{safeAuthor.toLowerCase()}</span>
+                        <span className="text-[13px] font-medium text-zinc-900">
+                          {safeAuthor.toLowerCase()}
+                        </span>
                         <span className="text-[11px] text-zinc-500">
                           {publishedLabel}
                           {readingTime ? `  •  ${readingTime}` : ""}
@@ -184,7 +225,6 @@ export default function ReadBlogPage() {
                       </div>
                     </div>
                   </div>
-
                 </div>
 
                 <div
@@ -211,7 +251,12 @@ export default function ReadBlogPage() {
                         }}
                         className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium hover:bg-zinc-50 disabled:opacity-60"
                       >
-                        {likeBusy ? "Saving..." : computedLiked ? "Liked" : "Like"} {likesCount > 0 ? `(${likesCount})` : ""}
+                        {likeBusy
+                          ? "Saving..."
+                          : computedLiked
+                          ? "Liked"
+                          : "Like"}{" "}
+                        {likesCount > 0 ? `(${likesCount})` : ""}
                       </button>
                       <span className="hidden sm:inline text-[11px] text-zinc-500">
                         Likes and comments help power your Reports & Analytics.
@@ -219,7 +264,9 @@ export default function ReadBlogPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                      onClick={() =>
+                        window.scrollTo({ top: 0, behavior: "smooth" })
+                      }
                       className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium hover:bg-zinc-50"
                     >
                       Back to top
@@ -230,14 +277,23 @@ export default function ReadBlogPage() {
                     <p className="font-medium text-zinc-800">Comments</p>
                     <div className="max-h-40 overflow-y-auto space-y-1.5">
                       {comments.length === 0 && (
-                        <p className="text-[11px] text-zinc-500">No comments yet. Be the first to leave feedback.</p>
+                        <p className="text-[11px] text-zinc-500">
+                          No comments yet. Be the first to leave feedback.
+                        </p>
                       )}
                       {comments.map((c) => (
-                        <div key={c.id} className="rounded-md border border-zinc-200 bg-white px-2 py-1">
-                          <p className="text-[11px] text-zinc-800 whitespace-pre-wrap">{c.text}</p>
+                        <div
+                          key={c.id}
+                          className="rounded-md border border-zinc-200 bg-white px-2 py-1"
+                        >
+                          <p className="text-[11px] text-zinc-800 whitespace-pre-wrap">
+                            {c.text}
+                          </p>
                           <p className="mt-0.5 text-[10px] text-zinc-400">
                             {c.user?.name ? `${c.user.name}  •  ` : ""}
-                            {c.createdAt ? new Date(c.createdAt).toLocaleString() : ""}
+                            {c.createdAt
+                              ? new Date(c.createdAt).toLocaleString()
+                              : ""}
                           </p>
                         </div>
                       ))}
@@ -251,7 +307,15 @@ export default function ReadBlogPage() {
                         try {
                           setCommentBusy(true);
                           const created = await addComment(blog._id, txt);
-                          setComments((prev) => [{ id: created.id, text: created.text, createdAt: created.createdAt, user: null }, ...prev]);
+                          setComments((prev) => [
+                            {
+                              id: created.id,
+                              text: created.text,
+                              createdAt: created.createdAt,
+                              user: null,
+                            },
+                            ...prev,
+                          ]);
                           setCommentText("");
                         } finally {
                           setCommentBusy(false);
@@ -279,7 +343,9 @@ export default function ReadBlogPage() {
               <aside className="hidden lg:block">
                 <div className="sticky top-24 space-y-4">
                   <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-                    <h2 className="text-sm font-semibold text-zinc-900">Key Insights</h2>
+                    <h2 className="text-sm font-semibold text-zinc-900">
+                      Key Insights
+                    </h2>
                     <ul className="mt-3 list-disc space-y-2 pl-5 text-xs text-zinc-700">
                       {derivedInsights.map((x, i) => (
                         <li key={`${x}-${i}`}>{x}</li>
@@ -294,7 +360,9 @@ export default function ReadBlogPage() {
                   </div>
 
                   <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-                    <h2 className="text-sm font-semibold text-zinc-900">Share this article</h2>
+                    <h2 className="text-sm font-semibold text-zinc-900">
+                      Share this article
+                    </h2>
                     <div className="mt-3 flex items-center gap-2">
                       <button
                         type="button"
@@ -321,7 +389,9 @@ export default function ReadBlogPage() {
                         type="button"
                         onClick={async () => {
                           try {
-                            await navigator.clipboard.writeText(window.location.href);
+                            await navigator.clipboard.writeText(
+                              window.location.href
+                            );
                           } catch {}
                         }}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"

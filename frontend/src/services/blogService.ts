@@ -20,7 +20,7 @@ function pagesToHtml(htmlPages: string[]) {
 
 // Minimal HTML -> Quill-like Delta converter. Not perfect but acceptable for storing a text snapshot.
 // It converts block elements into lines and preserves basic bold/italic markers via attributes when possible.
-type DeltaOp = { insert: string | { image: string }; attributes?: Record<string, any> };
+type DeltaOp = { insert: string | { image: string }; attributes?: Record<string, unknown> };
 export type QuillDelta = { ops: DeltaOp[] };
 
 function htmlFragmentToTextLines(html: string): string[] {
@@ -74,7 +74,7 @@ export async function createBlog(params: { title: string; htmlPages: string[]; s
   return { id: blog._id, blog };
 }
 
-export async function listBlogs(params?: { q?: string; tag?: string; author?: string; status?: BlogStatus; sort?: 'newest'|'mostViewed'|'trending' }) {
+export async function listBlogs(params?: { q?: string; tag?: string; author?: string; status?: BlogStatus; saved?: 'true'; sort?: 'newest'|'mostViewed'|'trending' }) {
   const { data } = await http.get<ApiSuccess<{ blogs: Blog[] }>>('/blog', { params });
   const parsed = blogListResponseSchema.parse({ blogs: data.blogs });
   return parsed.blogs;
@@ -106,16 +106,28 @@ export async function addComment(blogId: string, text: string): Promise<{ id: st
   return data.comment;
 }
 
-export async function updateBlog(params: { id: string; title?: string; htmlPages?: string[]; status?: BlogStatus }) {
-  const body: any = {};
+export async function updateBlog(params: { id: string; title?: string; htmlPages?: string[]; status?: BlogStatus; tags?: string[]; collaborators?: string[] }) {
+  const body: Record<string, unknown> = {};
   if (typeof params.title === "string") body.title = params.title;
   if (Array.isArray(params.htmlPages)) {
     body.contentHTML = pagesToHtml(params.htmlPages);
     body.contentDelta = pagesToDelta(params.htmlPages);
   }
   if (typeof params.status === "string") body.status = params.status;
+  if (Array.isArray(params.tags)) body.tags = params.tags;
+  if (Array.isArray(params.collaborators)) body.collaborators = params.collaborators;
   const { data } = await http.put<ApiSuccess<{ blog: Blog }>>(`/blog/${params.id}`, body);
   const parsed = blogResponseSchema.parse({ blog: data.blog });
   const blog = parsed.blog;
   return { id: blog._id, blog };
+}
+
+export async function toggleBookmark(blogId: string): Promise<{ bookmarked: boolean }> {
+  const { data } = await http.post<ApiSuccess<{ bookmarked: boolean }>>(`/blog/${blogId}/bookmark`);
+  return { bookmarked: !!data.bookmarked };
+}
+
+// Reuse generic listBlogs for search, specific param handling can be done here if needed
+export async function searchBlogs(query: string) {
+  return listBlogs({ q: query, sort: 'mostViewed' });
 }

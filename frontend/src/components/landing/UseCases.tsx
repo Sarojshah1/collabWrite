@@ -7,17 +7,44 @@ import { FiBriefcase, FiBookOpen, FiPenTool, FiUsers } from "react-icons/fi";
 type UseCase = { title: string; desc: string; icon: IconType; accent: string };
 
 const USE_CASES: UseCase[] = [
-  { title: "Startups", desc: "Specs, PRDs, roadmaps, and release notes.", icon: FiBriefcase, accent: "var(--color-primary)" },
-  { title: "Education", desc: "Lesson plans, coursework, and feedback loops.", icon: FiBookOpen, accent: "var(--color-secondary)" },
-  { title: "Creators", desc: "Newsletters, blogs, scripts, and outlines.", icon: FiPenTool, accent: "#6366f1" },
-  { title: "Teams", desc: "Meeting notes, strategies, team docs.", icon: FiUsers, accent: "var(--color-success)" },
+  {
+    title: "Startups",
+    desc: "Specs, PRDs, roadmaps, and release notes.",
+    icon: FiBriefcase,
+    accent: "var(--color-primary)",
+  },
+  {
+    title: "Education",
+    desc: "Lesson plans, coursework, and feedback loops.",
+    icon: FiBookOpen,
+    accent: "var(--color-secondary)",
+  },
+  {
+    title: "Creators",
+    desc: "Newsletters, blogs, scripts, and outlines.",
+    icon: FiPenTool,
+    accent: "#6366f1",
+  },
+  {
+    title: "Teams",
+    desc: "Meeting notes, strategies, team docs.",
+    icon: FiUsers,
+    accent: "var(--color-success)",
+  },
 ];
 
 const container = {
   hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { staggerChildren: 0.08, delayChildren: 0.05 },
+  },
 };
-const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
+const item = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35 } },
+};
 
 export default function UseCases() {
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -31,7 +58,10 @@ export default function UseCases() {
       <div className="mx-auto max-w-6xl px-2 sm:px-6">
         <div className="text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700">
-            <span className="inline-block size-1.5 rounded-full" style={{ backgroundColor: "var(--color-secondary)" }} />
+            <span
+              className="inline-block size-1.5 rounded-full"
+              style={{ backgroundColor: "var(--color-secondary)" }}
+            />
             Where it shines
           </span>
           <h2 className="mt-4 text-2xl sm:text-3xl md:text-4xl font-[var(--font-display)] font-bold tracking-tight text-black">
@@ -54,7 +84,7 @@ export default function UseCases() {
               <div
                 className="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-transform duration-300 hover:-translate-y-1"
                 onMouseMove={onMove}
-                style={{ ["--accent" as any]: c.accent }}
+                style={{ "--accent": c.accent } as React.CSSProperties}
               >
                 {/* glow */}
                 <div
@@ -69,22 +99,48 @@ export default function UseCases() {
                   <div className="flex items-center justify-between">
                     <div className="inline-flex items-center gap-3">
                       <span className="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-800">
-                        {(() => { const I = c.icon; return <I className="h-5 w-5" />; })()}
+                        {(() => {
+                          const I = c.icon;
+                          return <I className="h-5 w-5" />;
+                        })()}
                       </span>
-                      <h3 className="text-base font-semibold text-zinc-900">{c.title}</h3>
+                      <h3 className="text-base font-semibold text-zinc-900">
+                        {c.title}
+                      </h3>
                     </div>
-                    <span className="inline-block size-2 rounded-full" style={{ backgroundColor: c.accent }} />
+                    <span
+                      className="inline-block size-2 rounded-full"
+                      style={{ backgroundColor: c.accent }}
+                    />
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-zinc-700">{c.desc}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-700">
+                    {c.desc}
+                  </p>
                   <div className="mt-4 flex items-center justify-between text-xs text-zinc-600">
                     <span className="inline-flex items-center gap-2">
-                      <span className="inline-block size-2 rounded-full" style={{ backgroundColor: c.accent }} />
+                      <span
+                        className="inline-block size-2 rounded-full"
+                        style={{ backgroundColor: c.accent }}
+                      />
                       Popular
                     </span>
-                    <a href="#" className="inline-flex items-center gap-1 hover:text-zinc-900">
+                    <a
+                      href="#"
+                      className="inline-flex items-center gap-1 hover:text-zinc-900"
+                    >
                       Explore
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12h14" />
+                        <path d="M12 5l7 7-7 7" />
                       </svg>
                     </a>
                   </div>

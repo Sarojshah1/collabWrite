@@ -1,8 +1,11 @@
-import express from 'express';
-import { authMiddleware } from '../middlewares/authMiddleware.js';
-import * as blog from '../controllers/blogController.js';
-import { validate } from '../middlewares/validate.js';
-import { uploadMedia, uploadMiddleware } from '../controllers/mediaController.js';
+import express from "express";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import * as blog from "../controllers/blogController.js";
+import { validate } from "../middlewares/validate.js";
+import {
+  uploadMedia,
+  uploadMiddleware,
+} from "../controllers/mediaController.js";
 import {
   validateListBlogs,
   validateCreateBlog,
@@ -15,30 +18,86 @@ import {
   validateListVersions,
   validateGetVersion,
   validateRestoreVersion,
-} from '../validations/blogValidation.js';
+  validateToggleBookmark,
+} from "../validations/blogValidation.js";
 
 const router = express.Router();
 
-router.get('/', validateListBlogs, validate, authMiddleware, blog.list);
+router.get("/", validateListBlogs, validate, authMiddleware, blog.list);
 
-router.post('/', authMiddleware, validateCreateBlog, validate, blog.create);
+router.post("/", authMiddleware, validateCreateBlog, validate, blog.create);
 
 // Alias for blog cover image uploads
-router.post('/upload-image', authMiddleware, uploadMiddleware, uploadMedia);
+router.post("/upload-image", authMiddleware, uploadMiddleware, uploadMedia);
 
-router.get('/:id', validateGetBlog, validate, authMiddleware, blog.getById);
+router.get("/:id", validateGetBlog, validate, authMiddleware, blog.getById);
 
-router.post('/:id/like', authMiddleware, validateToggleLike, validate, blog.toggleLike);
-router.get('/:id/comments', authMiddleware, validateListComments, validate, blog.listComments);
-router.post('/:id/comments', authMiddleware, validateAddComment, validate, blog.addComment);
+router.post(
+  "/:id/like",
+  authMiddleware,
+  validateToggleLike,
+  validate,
+  blog.toggleLike
+);
+router.post(
+  "/:id/bookmark",
+  authMiddleware,
+  validateToggleBookmark,
+  validate,
+  blog.toggleBookmark
+);
+router.get(
+  "/:id/comments",
+  authMiddleware,
+  validateListComments,
+  validate,
+  blog.listComments
+);
+router.post(
+  "/:id/comments",
+  authMiddleware,
+  validateAddComment,
+  validate,
+  blog.addComment
+);
 
-router.get('/:id/realtime', validateGetBlog, validate, authMiddleware, blog.realtimeInfo);
-router.put('/:id', authMiddleware, validateUpdateBlog, validate, blog.update);
-router.delete('/:id', validateDeleteBlog, validate, authMiddleware, blog.remove);
+router.get(
+  "/:id/realtime",
+  validateGetBlog,
+  validate,
+  authMiddleware,
+  blog.realtimeInfo
+);
+router.put("/:id", authMiddleware, validateUpdateBlog, validate, blog.update);
+router.delete(
+  "/:id",
+  validateDeleteBlog,
+  validate,
+  authMiddleware,
+  blog.remove
+);
 
 // Versioning
-router.get('/:id/versions', authMiddleware, validateListVersions, validate, blog.listVersions);
-router.get('/:id/versions/:version', authMiddleware, validateGetVersion, validate, blog.getVersion);
-router.post('/:id/versions/:version/restore', authMiddleware, validateRestoreVersion, validate, blog.restoreVersion);
+router.get(
+  "/:id/versions",
+  authMiddleware,
+  validateListVersions,
+  validate,
+  blog.listVersions
+);
+router.get(
+  "/:id/versions/:version",
+  authMiddleware,
+  validateGetVersion,
+  validate,
+  blog.getVersion
+);
+router.post(
+  "/:id/versions/:version/restore",
+  authMiddleware,
+  validateRestoreVersion,
+  validate,
+  blog.restoreVersion
+);
 
 export default router;

@@ -1,0 +1,109 @@
+
+> final-sem-ui-project@1.0.0 build /Users/sarojkumarsah/Desktop/Desktop - saroj’s MacBook Air/final_sem_ui_project
+> pnpm -r run build
+
+Scope: 2 of 3 workspace projects
+backend build$ echo 'No build step for backend'
+frontend build$ next build --turbopack
+backend build: No build step for backend
+backend build: Done
+frontend build:    ▲ Next.js 15.5.3 (Turbopack)
+frontend build:    Creating an optimized production build ...
+frontend build:  ✓ Finished writing to disk in 34ms
+frontend build:  ✓ Compiled successfully in 1891ms
+frontend build:    Linting and checking validity of types ...
+frontend build: Failed to compile.
+frontend build: ./src/app/(user)/dashboard/merge/page.tsx
+frontend build: 25:21  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 38:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 50:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: ./src/app/(user)/dashboard/page.tsx
+frontend build: 387:37  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+frontend build: ./src/app/(user)/dashboard/profile/page.tsx
+frontend build: 13:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 25:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 27:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 48:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 49:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 152:45  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: ./src/app/(user)/dashboard/reports/page.tsx
+frontend build: 41:21  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: ./src/app/(user)/dashboard/templates/page.tsx
+frontend build: 64:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 120:17  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 137:17  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: ./src/app/blog/[id]/page.tsx
+frontend build: 3:30  Warning: 'useRef' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: ./src/app/page.tsx
+frontend build: 8:8  Warning: 'TrustSection' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 10:8  Warning: 'FAQSection' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: ./src/app/signup/page.tsx
+frontend build: 8:10  Warning: 'FiUpload' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 18:15  Warning: 'setBio' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 20:10  Warning: 'avatarPreview' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 21:10  Warning: 'dragOver' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 24:10  Warning: 'error' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 29:9  Warning: 'bioRemaining' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 32:9  Warning: 'strength' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 45:12  Warning: 'onPickAvatar' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 49:12  Warning: 'onFileChange' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 54:12  Warning: 'onDrop' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: ./src/components/common/BlogCard.tsx
+frontend build: 94:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+frontend build: 161:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+frontend build: ./src/components/common/Footer.tsx
+frontend build: 32:13  Error: Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+frontend build: ./src/components/common/Header.tsx
+frontend build: 10:11  Warning: 'isAuthenticated' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 26:9  Error: Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+frontend build: ./src/components/common/Sidebar.tsx
+frontend build: 36:11  Error: Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+frontend build: ./src/components/dashboard/AllAssignmentsCard.tsx
+frontend build: 26:56  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+frontend build: 26:74  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+frontend build: ./src/components/dashboard/AssignmentsDashboard.tsx
+frontend build: 17:10  Warning: 'me' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 18:10  Warning: 'meLoading' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 30:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 65:17  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: ./src/components/dashboard/CreateAssignmentModal.tsx
+frontend build: 85:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: ./src/components/editor/ AiDock.tsx
+frontend build: 2:10  Warning: 'generateBlog' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 2:24  Warning: 'generateSummary' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 2:41  Warning: 'generateTitle' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 3:10  Warning: 'insertTitleIntoEditor' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 24:17  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 38:17  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+frontend build: 120:17  Warning: Elements with the ARIA role "option" must have the following attributes defined: aria-selected  jsx-a11y/role-has-required-aria-props
+frontend build: ./src/components/editor/DocsEditor.tsx
+frontend build: 7:3  Warning: 'generateSummary' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 8:3  Warning: 'generateTitle' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 40:3  Warning: 'FiMessageCircle' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 41:3  Warning: 'FiLock' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 108:10  Warning: 'aiError' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 109:10  Warning: 'titleChoices' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 109:24  Warning: 'setTitleChoices' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+frontend build: 314:6  Warning: React Hook useEffect has a missing dependency: 'docId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+frontend build: 327:12  Warning: 'insertPlainText' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 332:12  Warning: 'toHtml' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 763:14  Warning: 'e' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 1863:7  Error: 'pageIndex' is never reassigned. Use 'const' instead.  prefer-const
+frontend build: ./src/components/editor/Menubar.tsx
+frontend build: 2:10  Warning: 'FiChevronDown' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 2:58  Warning: 'FiZap' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 3:10  Warning: 'FONT_SIZES' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 3:22  Warning: 'FONT_FAMILIES' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 3:37  Warning: 'HEADINGS' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 33:3  Warning: 'insertTable' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: 37:3  Warning: 'applyBlockHeading' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: ./src/components/editor/RichEditor.tsx
+frontend build: 76:5  Warning: Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps').
+frontend build: ./src/components/landing/FeaturesGrid.tsx
+frontend build: 3:27  Warning: 'FiClock' is defined but never used.  @typescript-eslint/no-unused-vars
+frontend build: info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+frontend build: Failed
+/Users/sarojkumarsah/Desktop/Desktop - saroj’s MacBook Air/final_sem_ui_project/frontend:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  frontend@0.1.0 build: `next build --turbopack`
+Exit status 1
+ ELIFECYCLE  Command failed with exit code 1.

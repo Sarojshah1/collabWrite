@@ -14,12 +14,12 @@ http.interceptors.request.use((config) => {
   const token = getToken();
   if (token) {
     config.headers = config.headers || {};
-    (config.headers as any).Authorization = `Bearer ${token}`;
+    (config.headers as Record<string, string | undefined>).Authorization = `Bearer ${token}`;
   }
   // If sending FormData, ensure Content-Type is not forced so browser sets boundary
   if (typeof FormData !== "undefined" && config.data instanceof FormData) {
     if (config.headers) {
-      delete (config.headers as any)["Content-Type"];
+      delete (config.headers as Record<string, string | undefined>)["Content-Type"];
     }
   }
   return config;
@@ -35,7 +35,7 @@ http.interceptors.response.use(
     }
     if (resp) {
       const message = resp.data?.message || `Request failed with status ${resp.status}`;
-      const err: any = new Error(message);
+      const err = new Error(message) as Error & { status?: number; details?: unknown };
       err.status = resp.status;
       err.details = resp.data?.details;
       return Promise.reject(err);

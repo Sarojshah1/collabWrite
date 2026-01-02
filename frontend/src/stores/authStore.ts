@@ -7,7 +7,7 @@ export type AuthState = {
   loading: boolean;
   isAuthenticated: boolean;
   login: (payload: { email: string; password: string }) => Promise<void>;
-  register: (payload: { name: string; email: string; password: string; bio?: string }) => Promise<void>;
+  register: (payload: { name: string; email: string; password: string; bio?: string; avatar?: File | null }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
   setUser: (u: AuthUser | null) => void;

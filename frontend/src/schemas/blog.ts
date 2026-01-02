@@ -22,6 +22,9 @@ export const blogSchema = z.object({
   likes: z.array(z.any()).optional().nullable(),
   // Note: author can be a string (ID) or the populated object
   author: z.union([blogAuthorSchema, z.string()]).nullish(),
+  tags: z.array(z.string()).optional(),
+  collaborators: z.array(z.string()).optional(),
+  bookmarks: z.array(z.string()).optional(),
 });
 
 export const blogListResponseSchema = z.object({

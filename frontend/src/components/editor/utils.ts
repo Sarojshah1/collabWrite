@@ -1,7 +1,4 @@
-import { insertTitleIntoEditor } from "./DocsEditor"; // This will cause a circular dependency. We need to handle this.
-// For now, let's keep insertTitleIntoEditor within DocsEditor or pass it as a prop.
-// For simplicity, I'll move it out to avoid issues for this example, but in a real app,
-// you might pass it down or use a different state management approach.
+
 
 export const FONT_SIZES = [
   { label: "10", value: "2" },
@@ -38,8 +35,8 @@ export function defaultHtml() {
   return "<p><br/></p>";
 }
 
-export function debounce<T extends (...args: any[]) => void>(fn: T, wait = 300) {
-  let t: any;
+export function debounce<T extends (...args: unknown[]) => void>(fn: T, wait = 300) {
+  let t: ReturnType<typeof setTimeout>;
   return (...args: Parameters<T>) => {
     clearTimeout(t);
     t = setTimeout(() => fn(...args), wait);

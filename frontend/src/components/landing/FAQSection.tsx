@@ -21,14 +21,19 @@ const FAQ_ITEMS = [
 
 export default function FAQSection() {
   return (
-    <section id="faq" className="py-16 bg-white" aria-label="Frequently asked questions">
+    <section
+      id="faq"
+      className="py-16 bg-white"
+      aria-label="Frequently asked questions"
+    >
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center mb-8">
           <h2 className="text-2xl sm:text-3xl font-[var(--font-display)] font-bold tracking-tight text-black">
             FAQ for students and teachers
           </h2>
           <p className="mt-2 text-sm text-zinc-700">
-            Short answers to the questions you\'ll get from teammates and instructors.
+            Short answers to the questions you&apos;ll get from teammates and
+            instructors.
           </p>
         </div>
 
@@ -44,7 +49,9 @@ export default function FAQSection() {
                 </span>
                 <div>
                   <h3 className="font-medium text-zinc-900">{item.q}</h3>
-                  <p className="mt-1 text-xs sm:text-sm leading-6 text-zinc-700">{item.a}</p>
+                  <p className="mt-1 text-xs sm:text-sm leading-6 text-zinc-700">
+                    {item.a}
+                  </p>
                 </div>
               </div>
             </article>

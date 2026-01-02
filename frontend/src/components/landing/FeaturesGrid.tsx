@@ -1,11 +1,19 @@
 "use client";
 
-import { FiAlertTriangle, FiClock, FiUserCheck, FiCalendar, FiBookOpen, FiType, FiDownload, FiBarChart2 } from "react-icons/fi";
+import {
+  FiAlertTriangle,
+  FiUserCheck,
+  FiCalendar,
+  FiBookOpen,
+  FiType,
+  FiDownload,
+  FiBarChart2,
+} from "react-icons/fi";
 
 const FEATURES = [
   {
     title: "Real-time conflict detection & merge",
-    body: "Spot overlapping edits instantly so groups don\'t overwrite each other\'s work.",
+    body: "Spot overlapping edits instantly so groups don't overwrite each other's work.",
     icon: FiAlertTriangle,
   },
   {
@@ -47,7 +55,11 @@ const FEATURES = [
 
 export default function FeaturesGrid() {
   return (
-    <section id="features" className="py-16 bg-white" aria-label="Detailed features">
+    <section
+      id="features"
+      className="py-16 bg-white"
+      aria-label="Detailed features"
+    >
       <div className="mx-auto max-w-6xl px-6">
         <div className="text-center mb-10">
           <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-700">
@@ -61,8 +73,8 @@ export default function FeaturesGrid() {
             Everything you need for clean, fair group work
           </h2>
           <p className="mt-2 text-sm sm:text-base text-zinc-700 max-w-2xl mx-auto">
-            CollabWrite focuses on the boring parts — tracking edits, merging conflicts, formatting — so your team can
-            focus on the ideas.
+            CollabWrite focuses on the boring parts — tracking edits, merging
+            conflicts, formatting — so your team can focus on the ideas.
           </p>
         </div>
 
@@ -78,8 +90,12 @@ export default function FeaturesGrid() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-sm font-semibold text-zinc-900">{f.title}</h3>
-                  <p className="text-xs sm:text-sm text-zinc-700 leading-6">{f.body}</p>
+                  <h3 className="text-sm font-semibold text-zinc-900">
+                    {f.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-zinc-700 leading-6">
+                    {f.body}
+                  </p>
                 </div>
               </article>
             );

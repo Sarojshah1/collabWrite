@@ -2,9 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { generateBlog, generateSummary, generateTitle } from "@/services/aiService";
-import { createBlog, updateBlog, getBlog } from "@/services/blogService";
+import { generateTitle } from "@/services/aiService";
+import {
+  createBlog,
+  updateBlog,
+  getBlog,
+  toggleBookmark,
+} from "@/services/blogService";
 import { connectCollab, getUserIdFromToken } from "@/services/realtimeService";
+import { userService } from "@/services/userService";
 import {
   FiBold,
   FiItalic,
@@ -35,6 +41,8 @@ import {
   FiStar,
   FiMessageCircle,
   FiLock,
+  FiTag,
+  FiUserPlus,
   FiZap,
 } from "react-icons/fi";
 
@@ -86,8 +94,10 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
   const [orientation, setOrientation] = useState<Orientation>("portrait");
   const [darkPage, setDarkPage] = useState(false);
   const [pages, setPages] = useState<number>(1);
-  const [presence, setPresence] = useState<any>(null);
-  const collabRef = useRef<null | Awaited<ReturnType<typeof connectCollab>>>(null);
+  const [presence, setPresence] = useState<unknown>(null);
+  const collabRef = useRef<null | Awaited<ReturnType<typeof connectCollab>>>(
+    null
+  );
   const myUserIdRef = useRef<string>(getUserIdFromToken() || "anon");
   const [showDownload, setShowDownload] = useState(false);
   const [showFile, setShowFile] = useState(false);
@@ -95,7 +105,9 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
   const [showFormat, setShowFormat] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
-  const [aiMode, setAiMode] = useState<"write"|"rewrite"|"continue"|"summarize">("write");
+  const [aiMode, setAiMode] = useState<
+    "write" | "rewrite" | "continue" | "summarize"
+  >("write");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [titleChoices, setTitleChoices] = useState<string[] | null>(null);
@@ -110,6 +122,17 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
   const [gridHoverRows, setGridHoverRows] = useState(1);
   const [gridHoverCols, setGridHoverCols] = useState(1);
   const savedRangeRef = useRef<Range | null>(null);
+
+  const [tags, setTags] = useState<string[]>([]);
+  const [showTagsModal, setShowTagsModal] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+
+  const [collaborators, setCollaborators] = useState<string[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteStatus, setInviteStatus] = useState("");
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const updateSavedRange = () => {
     const sel = window.getSelection();
@@ -128,7 +151,8 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
       return true;
     }
     // fallback: focus first page end
-    const first = pageContainerRef.current?.querySelector<HTMLDivElement>(".docs-page");
+    const first =
+      pageContainerRef.current?.querySelector<HTMLDivElement>(".docs-page");
     if (first) {
       first.focus();
       const range = document.createRange();
@@ -144,20 +168,45 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
 
   // Restore draft or load existing blog when initialDocId is provided
   useEffect(() => {
+    let mounted = true;
     (async () => {
       try {
+        let user: { id: string } | null = null;
+        try {
+          user = await userService.me();
+          if (mounted && user) setCurrentUserId(user.id);
+        } catch (e) {
+          console.warn("User not logged in or failed to fetch me", e);
+        }
+
         if (initialDocId) {
           const blog = await getBlog(initialDocId);
+          if (!mounted) return;
+
           setDocId(blog._id);
           setTitle(blog.title || "");
+          setTags(blog.tags || []);
+          setCollaborators(
+            Array.isArray(blog.collaborators)
+              ? blog.collaborators.map((c: any) =>
+                  typeof c === "string" ? c : c._id
+                )
+              : []
+          );
+          if (blog.bookmarks && user?.id) {
+            setIsBookmarked(blog.bookmarks.includes(user.id));
+          }
 
           let html = (blog.contentHTML || "").trim();
           if (!html) {
             html = defaultHtml();
           } else {
-            // If contentHTML is actually markdown (no tags but has markdown syntax), convert it
+            // Check for markdown
             const looksLikeHtml = /<\w+/.test(html);
-            const looksLikeMarkdown = /(^|\n)\s*#{1,6}\s+/.test(html) || /\*\*(.+?)\*\*/.test(html) || /^-\s+/m.test(html);
+            const looksLikeMarkdown =
+              /(^|\n)\s*#{1,6}\s+/.test(html) ||
+              /\*\*(.+?)\*\*/.test(html) ||
+              /^-\s+/m.test(html);
             if (!looksLikeHtml && looksLikeMarkdown) {
               html = markdownToHtml(html);
             }
@@ -165,36 +214,57 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
 
           setPages(1);
           setTimeout(() => {
-            const n = pageContainerRef.current?.querySelector<HTMLDivElement>(".docs-page");
+            const n =
+              pageContainerRef.current?.querySelector<HTMLDivElement>(
+                ".docs-page"
+              );
             if (n) n.innerHTML = html;
           }, 0);
-          return;
-        }
-
-        const saved = localStorage.getItem(DRAFT_KEY);
-        if (saved) {
-          const p = JSON.parse(saved) as { title: string; html?: string; htmlPages?: string[]; pageSize?: PageSize; orientation?: Orientation; darkPage?: boolean };
-          setTitle(p.title || "");
-          if (p.pageSize) setPageSize(p.pageSize);
-          if (p.orientation) setOrientation(p.orientation);
-          if (typeof p.darkPage === "boolean") setDarkPage(p.darkPage);
-          // Restore pages
-          const htmlPages = p.htmlPages && p.htmlPages.length > 0 ? p.htmlPages : [p.html || defaultHtml()];
-          setPages(htmlPages.length);
-          setTimeout(() => {
-            const nodes = pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page");
-            if (nodes) htmlPages.forEach((h, i) => { const n = nodes[i]; if (n) n.innerHTML = h; });
-          }, 0);
         } else {
-          // Initialize first page blank
-          setPages(1);
-          setTimeout(() => {
-            const n = pageContainerRef.current?.querySelector<HTMLDivElement>(".docs-page");
-            if (n && n.innerHTML.trim() === "") n.innerHTML = defaultHtml();
-          }, 0);
+          // Local draft
+          const saved = localStorage.getItem(DRAFT_KEY);
+          if (saved) {
+            try {
+              const p = JSON.parse(saved);
+              setTitle(p.title || "");
+              if (p.pageSize) setPageSize(p.pageSize);
+              if (p.orientation) setOrientation(p.orientation);
+              if (typeof p.darkPage === "boolean") setDarkPage(p.darkPage);
+              const htmlPages =
+                p.htmlPages && p.htmlPages.length > 0
+                  ? p.htmlPages
+                  : [p.html || defaultHtml()];
+              setPages(htmlPages.length);
+              setTimeout(() => {
+                const nodes =
+                  pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+                    ".docs-page"
+                  );
+                if (nodes)
+                  htmlPages.forEach((h: string, i: number) => {
+                    const n = nodes[i];
+                    if (n) n.innerHTML = h;
+                  });
+              }, 0);
+            } catch {}
+          } else {
+            setPages(1);
+            setTimeout(() => {
+              const n =
+                pageContainerRef.current?.querySelector<HTMLDivElement>(
+                  ".docs-page"
+                );
+              if (n && n.innerHTML.trim() === "") n.innerHTML = defaultHtml();
+            }, 0);
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.error("Failed to load:", e);
+      }
     })();
+    return () => {
+      mounted = false;
+    };
   }, [initialDocId]);
 
   // Realtime: connect when we have a blog id
@@ -206,44 +276,63 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
       try {
         if (!collabRef.current) {
           const client = await connectCollab();
-          if (!mounted) { client.disconnect(); return; }
+          if (!mounted) {
+            client.disconnect();
+            return;
+          }
           collabRef.current = client;
           client.onPresence((p) => {
-            if (typeof window !== 'undefined') console.log('[collab] presence', p);
+            if (typeof window !== "undefined")
+              console.log("[collab] presence", p);
             setPresence(p);
-            if (typeof window !== 'undefined' && pageContainerRef.current) {
-              renderRemoteCursors(pageContainerRef.current, p, myUserIdRef.current);
+            if (typeof window !== "undefined" && pageContainerRef.current) {
+              renderRemoteCursors(
+                pageContainerRef.current,
+                p,
+                myUserIdRef.current
+              );
             }
           });
 
           client.onSnapshot(({ blogId, contentHTML }) => {
             if (!docId || blogId !== docId) return;
             if (!contentHTML) return;
-            const nodes = pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page");
+            const nodes =
+              pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+                ".docs-page"
+              );
             if (!nodes || nodes.length === 0) return;
             const html = contentHTML.trim() || defaultHtml();
             nodes[0].innerHTML = html;
-            if (typeof window !== 'undefined') console.log('[collab] snapshot applied', { blogId });
+            if (typeof window !== "undefined")
+              console.log("[collab] snapshot applied", { blogId });
           });
 
           client.onEdit(({ blogId, userId: fromUser, delta }) => {
             if (!docId || blogId !== docId) return;
             if (!delta || !Array.isArray(delta.htmlPages)) return;
 
-            const nodes = pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page");
+            const nodes =
+              pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+                ".docs-page"
+              );
             if (!nodes) return;
             delta.htmlPages.forEach((html: string, idx: number) => {
               const n = nodes[idx];
               if (n) n.innerHTML = html || defaultHtml();
             });
-            if (typeof window !== 'undefined') console.log('[collab] remote edit applied', { blogId, fromUser });
+            if (typeof window !== "undefined")
+              console.log("[collab] remote edit applied", { blogId, fromUser });
           });
         }
         collabRef.current?.join(docId, userId, null);
-        if (typeof window !== 'undefined') console.log('[collab] joined doc', { docId, userId });
+        if (typeof window !== "undefined")
+          console.log("[collab] joined doc", { docId, userId });
       } catch {}
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [docId]);
 
   useEffect(() => {
@@ -270,20 +359,6 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     pageContainerRef.current?.focus();
   }
 
-  function insertPlainText(text: string) {
-    document.execCommand("insertText", false, text);
-  }
-
-  // Turn plain text into simple HTML paragraphs
-  function toHtml(text: string) {
-    const esc = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    const parts = esc.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, "<br/>")}</p>`);
-    return parts.join("");
-  }
-
   // Very small Markdown -> HTML converter (headings, lists, bold/italic, paragraphs)
   function markdownToHtml(md: string) {
     // Normalize AI-style markdown that may put headings/bullets inline without newlines
@@ -296,10 +371,16 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     const lines = normalized.split("\n");
     let html = "";
     let inUl = false;
-    const flushUl = () => { if (inUl) { html += "</ul>"; inUl = false; } };
-    const inline = (s: string) => s
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>");
+    const flushUl = () => {
+      if (inUl) {
+        html += "</ul>";
+        inUl = false;
+      }
+    };
+    const inline = (s: string) =>
+      s
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.+?)\*/g, "<em>$1</em>");
     for (const raw of lines) {
       const line = raw.trimEnd();
       const h = line.match(/^(#{1,6})\s+(.*)$/);
@@ -310,11 +391,18 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
         continue;
       }
       if (/^\*\s+/.test(line)) {
-        if (!inUl) { html += "<ul>"; inUl = true; }
+        if (!inUl) {
+          html += "<ul>";
+          inUl = true;
+        }
         html += `<li>${inline(line.replace(/^\*\s+/, ""))}</li>`;
         continue;
       }
-      if (line === "") { flushUl(); html += "<p><br/></p>"; continue; }
+      if (line === "") {
+        flushUl();
+        html += "<p><br/></p>";
+        continue;
+      }
       flushUl();
       html += `<p>${inline(line)}</p>`;
     }
@@ -322,17 +410,22 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     return html;
   }
 
-  function normalizeAiContent(res: any): string {
+  function normalizeAiContent(res: unknown): string {
     if (!res) return "";
-    if (typeof res.html === 'string') return res.html;
-    if (typeof res.content === 'string') return res.content;
-    if (typeof res.text === 'string') return res.text;
-    if (Array.isArray(res?.choices)) {
-      const c = res.choices[0];
-      if (typeof c === 'string') return c;
-      if (typeof c?.message?.content === 'string') return c.message.content;
+    const r = res as Record<string, unknown>;
+    if (typeof r.html === "string") return r.html;
+    if (typeof r.content === "string") return r.content;
+    if (typeof r.text === "string") return r.text;
+    if (Array.isArray(r?.choices)) {
+      const c = r.choices[0] as string | { message?: { content?: string } };
+      if (typeof c === "string") return c;
+      if (typeof c?.message?.content === "string") return c.message.content;
     }
-    try { return String(res); } catch { return ""; }
+    try {
+      return String(res);
+    } catch {
+      return "";
+    }
   }
 
   function paginateText(text: string, wordsPerPage = 900) {
@@ -351,7 +444,8 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
   }
 
   function focusLastPage() {
-    const pages = pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page");
+    const pages =
+      pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page");
     const last = pages && pages[pages.length - 1];
     if (!last) return;
     last.focus();
@@ -366,12 +460,24 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
 
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  async function runAiChat(prompt: string, mode: 'write'|'rewrite'|'continue'|'summarize' = 'write') {
+  async function runAiChat(
+    prompt: string,
+    mode: "write" | "rewrite" | "continue" | "summarize" = "write"
+  ) {
     try {
-      const context = mode === 'rewrite' || mode === 'summarize' ? (window.getSelection()?.toString() || '') : '';
-      const finalPrompt = context ? `${prompt}\n\nContext:\n${context}` : prompt;
+      const context =
+        mode === "rewrite" || mode === "summarize"
+          ? window.getSelection()?.toString() || ""
+          : "";
+      const finalPrompt = context
+        ? `${prompt}\n\nContext:\n${context}`
+        : prompt;
       let outText: string;
-      if (mode === 'write' && /^(#|\*\s|\w+)/m.test(prompt) && prompt.length > 80) {
+      if (
+        mode === "write" &&
+        /^(#|\*\s|\w+)/m.test(prompt) &&
+        prompt.length > 80
+      ) {
         outText = prompt;
       } else {
         const res = await generateBlog({ prompt: finalPrompt });
@@ -381,18 +487,20 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
       // Paginate by word count
       const chunks = paginateText(outText, 900);
       for (let i = 0; i < chunks.length; i++) {
-        const html = /<\w+/.test(outText) ? chunks[i] : markdownToHtml(chunks[i]);
+        const html = /<\w+/.test(outText)
+          ? chunks[i]
+          : markdownToHtml(chunks[i]);
         focusLastPage();
-        document.execCommand('insertHTML', false, html);
+        document.execCommand("insertHTML", false, html);
         setDirty(true);
         if (i < chunks.length - 1) {
           addPage();
           await wait(0);
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       // ignore chat history; surface failures via alert for now
-      alert(e?.message || 'AI failed');
+      alert((e as Error)?.message || "AI failed");
     }
   }
 
@@ -404,19 +512,55 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     try {
       await runAiChat(prompt, aiMode);
       setAiPrompt("");
-    } catch (err: any) {
-      setAiError(err?.message || "AI failed");
+    } catch (err: unknown) {
+      setAiError((err as Error)?.message || "AI failed");
     } finally {
       setAiLoading(false);
     }
   }
 
+  const saveMetadata = async (
+    newTags?: string[],
+    newCollaborators?: string[]
+  ) => {
+    if (!initialDocId && !docId) {
+      // Only save to backend if it's a real doc
+      // For local drafts, we might want to save to localStorage too, but simplistic for now.
+      return;
+    }
+    // If docId is null but initialDocId is set, wait or use initialDocId.
+    // Actually docId is set in effect.
+    const id = docId || initialDocId;
+    if (!id) return;
+
+    try {
+      await updateBlog({
+        id,
+        tags: newTags ?? tags,
+        collaborators: newCollaborators ?? collaborators,
+      });
+    } catch (e) {
+      alert("Failed to save metadata");
+    }
+  };
+
   const saveDraft = useMemo(
     () =>
       debounce(() => {
         try {
-          const htmlPages = Array.from(pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []).map((n) => n.innerHTML || defaultHtml());
-          const payload = { title, htmlPages, pageSize, orientation, darkPage, ts: Date.now() };
+          const htmlPages = Array.from(
+            pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+              ".docs-page"
+            ) || []
+          ).map((n) => n.innerHTML || defaultHtml());
+          const payload = {
+            title,
+            htmlPages,
+            pageSize,
+            orientation,
+            darkPage,
+            ts: Date.now(),
+          };
           localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
           setSavedAt(Date.now());
           setDirty(false);
@@ -431,21 +575,32 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
         try {
           if (!docId || !collabRef.current) return;
           const htmlPages = Array.from(
-            pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []
+            pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+              ".docs-page"
+            ) || []
           ).map((n) => n.innerHTML || defaultHtml());
           const userId = myUserIdRef.current;
-          if (typeof window !== 'undefined') console.log('[collab] local edit broadcast', { docId, userId });
+          if (typeof window !== "undefined")
+            console.log("[collab] local edit broadcast", { docId, userId });
           collabRef.current.editContent(docId, userId, { htmlPages });
 
           if (pageContainerRef.current) {
             const sel = window.getSelection();
             if (sel && sel.anchorNode) {
-              const pages = Array.from(pageContainerRef.current.querySelectorAll<HTMLDivElement>(".docs-page"));
-              const pageIndex = pages.findIndex((p) => isInsideEditor(sel.anchorNode!, p));
+              const pages = Array.from(
+                pageContainerRef.current.querySelectorAll<HTMLDivElement>(
+                  ".docs-page"
+                )
+              );
+              const pageIndex = pages.findIndex((p) =>
+                isInsideEditor(sel.anchorNode!, p)
+              );
               const page = pageIndex >= 0 ? pages[pageIndex] : null;
               if (page) {
                 let paraIndex = 0;
-                const paragraphs = Array.from(page.querySelectorAll<HTMLElement>('p,h1,h2,h3,h4,h5,h6'));
+                const paragraphs = Array.from(
+                  page.querySelectorAll<HTMLElement>("p,h1,h2,h3,h4,h5,h6")
+                );
                 let activePara: HTMLElement | null = null;
                 paragraphs.forEach((el, idx) => {
                   if (!activePara && isInsideEditor(sel.anchorNode!, el)) {
@@ -454,9 +609,14 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
                   }
                 });
                 if (activePara) {
-                  const text = (activePara as HTMLElement).innerText || '';
+                  const text = (activePara as HTMLElement).innerText || "";
                   const segmentId = `${docId}-p-${pageIndex}-${paraIndex}`;
-                  collabRef.current.paragraphEdit(docId, userId, segmentId, text);
+                  collabRef.current.paragraphEdit(
+                    docId,
+                    userId,
+                    segmentId,
+                    text
+                  );
                 }
               }
             }
@@ -497,13 +657,14 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     restoreSelection();
     let html = '<table style="width:100%; border-collapse:collapse;">';
     for (let r = 0; r < rows; r++) {
-      html += '<tr>';
+      html += "<tr>";
       for (let c = 0; c < cols; c++) {
-        html += '<td style="border:1px solid #e5e7eb; padding:8px;">&nbsp;</td>';
+        html +=
+          '<td style="border:1px solid #e5e7eb; padding:8px;">&nbsp;</td>';
       }
-      html += '</tr>';
+      html += "</tr>";
     }
-    html += '</table>';
+    html += "</table>";
     document.execCommand("insertHTML", false, html);
     setDirty(true);
     setShowInsert(false);
@@ -512,7 +673,8 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
 
   const insertChartPlaceholder = () => {
     restoreSelection();
-    const html = '<div style="width:100%;height:220px;border:1px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#64748b;">Chart placeholder</div>';
+    const html =
+      '<div style="width:100%;height:220px;border:1px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#64748b;">Chart placeholder</div>';
     document.execCommand("insertHTML", false, html);
     setDirty(true);
   };
@@ -527,13 +689,14 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     const cols = Math.max(1, Number(tableCols));
     let html = '<table style="width:100%; border-collapse:collapse;">';
     for (let r = 0; r < rows; r++) {
-      html += '<tr>';
+      html += "<tr>";
       for (let c = 0; c < cols; c++) {
-        html += '<td style="border:1px solid #e5e7eb; padding:8px;">&nbsp;</td>';
+        html +=
+          '<td style="border:1px solid #e5e7eb; padding:8px;">&nbsp;</td>';
       }
-      html += '</tr>';
+      html += "</tr>";
     }
-    html += '</table>';
+    html += "</table>";
     document.execCommand("insertHTML", false, html);
     setDirty(true);
     setShowTableModal(false);
@@ -596,34 +759,52 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     }
 
     // 2) If plain text looks like markdown, convert to HTML before inserting
-    const text = e.clipboardData.getData('text/plain');
+    const text = e.clipboardData.getData("text/plain");
     if (text) {
       const looksLikeHeading = /(^|\n)\s*#{1,6}\s+/.test(text);
       const looksLikeList = /(^|\n)\s*(\*|-|\d+\.)\s+/.test(text);
-      const looksLikeMd = looksLikeHeading || looksLikeList || /\*\*(.+?)\*\*/.test(text);
+      const looksLikeMd =
+        looksLikeHeading || looksLikeList || /\*\*(.+?)\*\*/.test(text);
       if (looksLikeMd && !/<\w+/.test(text)) {
         e.preventDefault();
         const html = markdownToHtml(text);
-        document.execCommand('insertHTML', false, html);
+        document.execCommand("insertHTML", false, html);
         setDirty(true);
       }
     }
   };
 
-  const zoomOut = () => setZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))));
-  const zoomIn = () => setZoom((z) => Math.min(2, Number((z + 0.1).toFixed(2))));
+  const zoomOut = () =>
+    setZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))));
+  const zoomIn = () =>
+    setZoom((z) => Math.min(2, Number((z + 0.1).toFixed(2))));
 
-  const toggleOrientation = () => setOrientation((o) => (o === "portrait" ? "landscape" : "portrait"));
+  const toggleOrientation = () =>
+    setOrientation((o) => (o === "portrait" ? "landscape" : "portrait"));
   const pageDims = getPageDimensions(pageSize, orientation);
 
   const handlePublish = () => {
     try {
-      const htmlPages = Array.from(pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []).map((n) => n.innerHTML || defaultHtml());
-      const payload = { title: title || "Untitled document", htmlPages, pageSize, orientation };
+      const htmlPages = Array.from(
+        pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+          ".docs-page"
+        ) || []
+      ).map((n) => n.innerHTML || defaultHtml());
+      const payload = {
+        title: title || "Untitled document",
+        htmlPages,
+        pageSize,
+        orientation,
+      };
       // TODO: integrate backend. For now, confirm publish.
-      alert("Published! (stub)\n\nTitle: " + payload.title + "\nPages: " + htmlPages.length);
+      alert(
+        "Published! (stub)\n\nTitle: " +
+          payload.title +
+          "\nPages: " +
+          htmlPages.length
+      );
       setDirty(false);
-    } catch (e) {
+    } catch {
       alert("Failed to publish (stub)");
     }
   };
@@ -632,15 +813,24 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     setPages((p) => p + 1);
     setDirty(true);
     setTimeout(() => {
-      const nodes = pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page");
+      const nodes =
+        pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+          ".docs-page"
+        );
       const last = nodes?.[nodes.length - 1];
       if (last && last.innerHTML.trim() === "") last.innerHTML = defaultHtml();
     }, 0);
   };
 
   function exportDoc() {
-    const htmlPages = Array.from(pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []).map((n) => n.innerHTML || defaultHtml());
-    const content = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title || "Document"}</title></head><body>${htmlPages
+    const htmlPages = Array.from(
+      pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+        ".docs-page"
+      ) || []
+    ).map((n) => n.innerHTML || defaultHtml());
+    const content = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${
+      title || "Document"
+    }</title></head><body>${htmlPages
       .map((h) => `<div>${h}</div>`)
       .join('<div style="page-break-after:always"></div>')}</body></html>`;
     const blob = new Blob([content], { type: "application/msword" });
@@ -653,7 +843,11 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
   }
 
   function exportPdf() {
-    const htmlPages = Array.from(pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []).map((n) => n.outerHTML);
+    const htmlPages = Array.from(
+      pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+        ".docs-page"
+      ) || []
+    ).map((n) => n.outerHTML);
     const w = window.open("", "_blank");
     if (!w) return;
     w.document.open();
@@ -664,7 +858,9 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
       body { background: #fff; color: #111827; }
       .docs-page { width: auto; min-height: auto; border: none; box-shadow: none; margin: 0 0 16px 0; padding: 0; }
     </style>
-    </head><body>${htmlPages.join('<div style="page-break-after:always"></div>')}</body></html>`);
+    </head><body>${htmlPages.join(
+      '<div style="page-break-after:always"></div>'
+    )}</body></html>`);
     w.document.close();
     w.focus();
     w.print();
@@ -684,112 +880,441 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
             placeholder="Untitled document"
             className="docs-menubar-title"
           />
-          <button className="docs-menubar-icon" title="Star"><FiStar /></button>
+          <button
+            className="docs-menubar-icon"
+            title="Bookmark"
+            onClick={async () => {
+              const id = docId || initialDocId;
+              if (id) {
+                try {
+                  const { bookmarked } = await toggleBookmark(id);
+                  setIsBookmarked(bookmarked);
+                } catch (e) {
+                  alert("Failed to bookmark");
+                }
+              }
+            }}
+          >
+            <FiStar fill={isBookmarked ? "currentColor" : "none"} />
+          </button>
+          <button
+            className="docs-menubar-icon"
+            title="Tags"
+            onClick={() => setShowTagsModal(true)}
+          >
+            <FiTag />
+          </button>
+          <button
+            className="docs-menubar-icon"
+            title="Invite Collaborator"
+            onClick={() => setShowInviteModal(true)}
+          >
+            <FiUserPlus />
+          </button>
         </div>
         <nav className="docs-menu-items" aria-label="Application menu">
           <div className="docs-menu">
-            <button className="docs-menu-item" onClick={() => { setShowFile(v=>!v); setShowInsert(false); setShowFormat(false); }}>File</button>
+            <button
+              className="docs-menu-item"
+              onClick={() => {
+                setShowFile((v) => !v);
+                setShowInsert(false);
+                setShowFormat(false);
+              }}
+            >
+              File
+            </button>
             {showFile && (
-              <div className="docs-menu-list" role="menu" onMouseLeave={() => setShowFile(false)}>
-                <button role="menuitem" onClick={() => { setPages(1); setTitle(""); }}>New</button>
-                <button role="menuitem" onClick={() => alert("Open dialog stub")}>Open…</button>
-                <button role="menuitem" onClick={() => {
-                  const htmlPages = Array.from(pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []).map((n) => n.innerHTML || defaultHtml());
-                  const payload = { title, htmlPages, pageSize, orientation, darkPage, ts: Date.now() };
-                  localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-                  setSavedAt(Date.now()); setDirty(false);
-                  setShowFile(false);
-                }}>Save draft</button>
-                <button role="menuitem" onClick={() => { setShowFile(false); handlePublish(); }}>Publish</button>
+              <div
+                className="docs-menu-list"
+                role="menu"
+                onMouseLeave={() => setShowFile(false)}
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setPages(1);
+                    setTitle("");
+                  }}
+                >
+                  New
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => alert("Open dialog stub")}
+                >
+                  Open…
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    const htmlPages = Array.from(
+                      pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+                        ".docs-page"
+                      ) || []
+                    ).map((n) => n.innerHTML || defaultHtml());
+                    const payload = {
+                      title,
+                      htmlPages,
+                      pageSize,
+                      orientation,
+                      darkPage,
+                      ts: Date.now(),
+                    };
+                    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+                    setSavedAt(Date.now());
+                    setDirty(false);
+                    setShowFile(false);
+                  }}
+                >
+                  Save draft
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFile(false);
+                    handlePublish();
+                  }}
+                >
+                  Publish
+                </button>
                 <div className="docs-menu-sep" />
-                <button role="menuitem" onClick={() => { setShowFile(false); exportPdf(); }}>Download → PDF</button>
-                <button role="menuitem" onClick={() => { setShowFile(false); exportDoc(); }}>Download → Word (.doc)</button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFile(false);
+                    exportPdf();
+                  }}
+                >
+                  Download → PDF
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFile(false);
+                    exportDoc();
+                  }}
+                >
+                  Download → Word (.doc)
+                </button>
               </div>
             )}
 
-      {showLinkModal && (
-        <div className="docs-modal" role="dialog" aria-modal="true">
-          <div className="docs-modal-card">
-            <div className="docs-modal-header">
-              <h3>Insert link</h3>
-              <button className="docs-btn" onClick={() => setShowLinkModal(false)} title="Close">×</button>
-            </div>
-            <div className="docs-modal-body">
-              <label className="docs-field">
-                <span>Text</span>
-                <input type="text" value={linkText} onChange={(e)=>setLinkText(e.target.value)} placeholder="Link text" />
-              </label>
-              <label className="docs-field">
-                <span>URL</span>
-                <input type="url" value={linkUrl} onChange={(e)=>setLinkUrl(e.target.value)} placeholder="https://example.com" />
-              </label>
-            </div>
-            <div className="docs-modal-actions">
-              <button className="docs-primary-btn outline" onClick={()=>setShowLinkModal(false)}>Cancel</button>
-              <button className="docs-primary-btn" onClick={() => {
-                if (!linkUrl) return;
-                const sel = window.getSelection();
-                if (sel && sel.rangeCount > 0 && sel.toString()) {
-                  // Replace selection with anchor
-                  const a = `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${linkText || sel.toString()}</a>`;
-                  replaceSelectionWithHtml(a);
-                } else {
-                  // Insert anchor with text
-                  const a = `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${linkText || linkUrl}</a>`;
-                  replaceSelectionWithHtml(a);
-                }
-                setShowLinkModal(false);
-                setDirty(true);
-              }}>Insert</button>
-            </div>
-          </div>
-        </div>
-      )}
+            {showTagsModal && (
+              <div className="docs-modal" role="dialog" aria-modal="true">
+                <div className="docs-modal-card">
+                  <div className="docs-modal-header">
+                    <h3>Manage Tags</h3>
+                    <button
+                      className="docs-btn"
+                      onClick={() => setShowTagsModal(false)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="docs-modal-body">
+                    <div className="flex gap-2 flex-wrap mb-4">
+                      {tags.map((t) => (
+                        <span
+                          key={t}
+                          className="bg-zinc-100 px-2 py-1 rounded text-sm flex items-center gap-1"
+                        >
+                          {t}
+                          <button
+                            onClick={() => {
+                              const newTags = tags.filter((x) => x !== t);
+                              setTags(newTags);
+                              saveMetadata(newTags);
+                            }}
+                            className="text-zinc-500 hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        className="docs-input flex-1"
+                        placeholder="Add tag..."
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (
+                              tagInput.trim() &&
+                              !tags.includes(tagInput.trim())
+                            ) {
+                              const newTags = [...tags, tagInput.trim()];
+                              setTags(newTags);
+                              setTagInput("");
+                              saveMetadata(newTags);
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        className="docs-primary-btn"
+                        onClick={() => {
+                          if (
+                            tagInput.trim() &&
+                            !tags.includes(tagInput.trim())
+                          ) {
+                            const newTags = [...tags, tagInput.trim()];
+                            setTags(newTags);
+                            setTagInput("");
+                            saveMetadata(newTags);
+                          }
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
-      {showTableModal && (
-        <div className="docs-modal" role="dialog" aria-modal="true">
-          <div className="docs-modal-card">
-            <div className="docs-modal-header">
-              <h3>Insert table</h3>
-              <button className="docs-btn" onClick={() => setShowTableModal(false)} title="Close">×</button>
-            </div>
-            <div className="docs-modal-body">
-              <label className="docs-field">
-                <span>Rows</span>
-                <input type="number" min={1} max={20} value={tableRows} onChange={(e)=>setTableRows(Number(e.target.value))} />
-              </label>
-              <label className="docs-field">
-                <span>Columns</span>
-                <input type="number" min={1} max={12} value={tableCols} onChange={(e)=>setTableCols(Number(e.target.value))} />
-              </label>
-            </div>
-            <div className="docs-modal-actions">
-              <button className="docs-primary-btn outline" onClick={()=>setShowTableModal(false)}>Cancel</button>
-              <button className="docs-primary-btn" onClick={confirmInsertTable}>Insert</button>
-            </div>
-          </div>
-        </div>
-      )}
+            {showInviteModal && (
+              <div className="docs-modal" role="dialog" aria-modal="true">
+                <div className="docs-modal-card">
+                  <div className="docs-modal-header">
+                    <h3>Invite Collaborator</h3>
+                    <button
+                      className="docs-btn"
+                      onClick={() => setShowInviteModal(false)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="docs-modal-body">
+                    <p className="text-sm text-zinc-500 mb-4">
+                      Enter user email to invite.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        className="docs-input flex-1"
+                        placeholder="user@example.com"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                      />
+                      <button
+                        className="docs-primary-btn"
+                        onClick={async () => {
+                          if (!inviteEmail.trim()) return;
+                          setInviteStatus("Searching...");
+                          try {
+                            const users = await userService.searchUsers(
+                              inviteEmail
+                            );
+                            const user = users.find(
+                              (u) => u.email === inviteEmail
+                            );
+                            if (user) {
+                              if (!collaborators.includes(user.id)) {
+                                const newCollabs = [...collaborators, user.id];
+                                setCollaborators(newCollabs);
+                                await saveMetadata(undefined, newCollabs);
+                                setInviteStatus("Invited!");
+                                setInviteEmail("");
+                              } else {
+                                setInviteStatus("User already invited.");
+                              }
+                            } else {
+                              setInviteStatus("User not found.");
+                            }
+                          } catch (e) {
+                            setInviteStatus("Error searching user.");
+                          }
+                        }}
+                      >
+                        Invite
+                      </button>
+                    </div>
+                    {inviteStatus && (
+                      <p className="text-xs mt-2 text-zinc-600">
+                        {inviteStatus}
+                      </p>
+                    )}
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium mb-2">
+                        Collaborators ({collaborators.length})
+                      </h4>
+                      <ul className="text-sm text-zinc-500 list-disc pl-4">
+                        {collaborators.map((c) => (
+                          <li key={c}>{c}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showLinkModal && (
+              <div className="docs-modal" role="dialog" aria-modal="true">
+                <div className="docs-modal-card">
+                  <div className="docs-modal-header">
+                    <h3>Insert link</h3>
+                    <button
+                      className="docs-btn"
+                      onClick={() => setShowLinkModal(false)}
+                      title="Close"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="docs-modal-body">
+                    <label className="docs-field">
+                      <span>Text</span>
+                      <input
+                        type="text"
+                        value={linkText}
+                        onChange={(e) => setLinkText(e.target.value)}
+                        placeholder="Link text"
+                      />
+                    </label>
+                    <label className="docs-field">
+                      <span>URL</span>
+                      <input
+                        type="url"
+                        value={linkUrl}
+                        onChange={(e) => setLinkUrl(e.target.value)}
+                        placeholder="https://example.com"
+                      />
+                    </label>
+                  </div>
+                  <div className="docs-modal-actions">
+                    <button
+                      className="docs-primary-btn outline"
+                      onClick={() => setShowLinkModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="docs-primary-btn"
+                      onClick={() => {
+                        if (!linkUrl) return;
+                        const sel = window.getSelection();
+                        if (sel && sel.rangeCount > 0 && sel.toString()) {
+                          // Replace selection with anchor
+                          const a = `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${
+                            linkText || sel.toString()
+                          }</a>`;
+                          replaceSelectionWithHtml(a);
+                        } else {
+                          // Insert anchor with text
+                          const a = `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${
+                            linkText || linkUrl
+                          }</a>`;
+                          replaceSelectionWithHtml(a);
+                        }
+                        setShowLinkModal(false);
+                        setDirty(true);
+                      }}
+                    >
+                      Insert
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showTableModal && (
+              <div className="docs-modal" role="dialog" aria-modal="true">
+                <div className="docs-modal-card">
+                  <div className="docs-modal-header">
+                    <h3>Insert table</h3>
+                    <button
+                      className="docs-btn"
+                      onClick={() => setShowTableModal(false)}
+                      title="Close"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="docs-modal-body">
+                    <label className="docs-field">
+                      <span>Rows</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={tableRows}
+                        onChange={(e) => setTableRows(Number(e.target.value))}
+                      />
+                    </label>
+                    <label className="docs-field">
+                      <span>Columns</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={tableCols}
+                        onChange={(e) => setTableCols(Number(e.target.value))}
+                      />
+                    </label>
+                  </div>
+                  <div className="docs-modal-actions">
+                    <button
+                      className="docs-primary-btn outline"
+                      onClick={() => setShowTableModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="docs-primary-btn"
+                      onClick={confirmInsertTable}
+                    >
+                      Insert
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div className="docs-menu">
-            <button className="docs-menu-item" onClick={() => { setShowInsert(v=>!v); setShowFile(false); setShowFormat(false); }}>Insert</button>
+            <button
+              className="docs-menu-item"
+              onClick={() => {
+                setShowInsert((v) => !v);
+                setShowFile(false);
+                setShowFormat(false);
+              }}
+            >
+              Insert
+            </button>
             {showInsert && (
               <div className="docs-menu-list" role="menu">
-                <div className="docs-menu-row" onMouseEnter={() => setShowTableGrid(true)}>
+                <div
+                  className="docs-menu-row"
+                  onMouseEnter={() => setShowTableGrid(true)}
+                >
                   <button role="menuitem">Table ▸</button>
                   {showTableGrid && (
-                    <div className="docs-submenu" onMouseLeave={() => setShowTableGrid(false)}>
+                    <div
+                      className="docs-submenu"
+                      onMouseLeave={() => setShowTableGrid(false)}
+                    >
                       <div className="docs-table-grid">
-                        {Array.from({length:10}).map((_, r) => (
+                        {Array.from({ length: 10 }).map((_, r) => (
                           <div key={r} className="docs-grid-row">
-                            {Array.from({length:10}).map((__, c) => {
-                              const rr = r+1, cc = c+1;
-                              const active = rr <= gridHoverRows && cc <= gridHoverCols;
+                            {Array.from({ length: 10 }).map((__, c) => {
+                              const rr = r + 1,
+                                cc = c + 1;
+                              const active =
+                                rr <= gridHoverRows && cc <= gridHoverCols;
                               return (
                                 <span
                                   key={c}
-                                  className={`docs-grid-cell ${active ? 'active' : ''}`}
-                                  onMouseEnter={() => { setGridHoverRows(rr); setGridHoverCols(cc); }}
+                                  className={`docs-grid-cell ${
+                                    active ? "active" : ""
+                                  }`}
+                                  onMouseEnter={() => {
+                                    setGridHoverRows(rr);
+                                    setGridHoverCols(cc);
+                                  }}
                                   onClick={() => insertTableWithSize(rr, cc)}
                                 />
                               );
@@ -797,43 +1322,150 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
                           </div>
                         ))}
                       </div>
-                      <div className="docs-grid-label">{gridHoverRows} × {gridHoverCols}</div>
+                      <div className="docs-grid-label">
+                        {gridHoverRows} × {gridHoverCols}
+                      </div>
                     </div>
                   )}
                 </div>
-                <button role="menuitem" onClick={() => { setShowInsert(false); onPickImage(); }}>Image…</button>
-                <button role="menuitem" onClick={() => { setShowInsert(false); createLink(); }}>Link…</button>
-                <button role="menuitem" onClick={() => { setShowInsert(false); insertChartPlaceholder(); }}>Chart (placeholder)</button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowInsert(false);
+                    onPickImage();
+                  }}
+                >
+                  Image…
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowInsert(false);
+                    createLink();
+                  }}
+                >
+                  Link…
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowInsert(false);
+                    insertChartPlaceholder();
+                  }}
+                >
+                  Chart (placeholder)
+                </button>
               </div>
             )}
           </div>
           <div className="docs-menu">
-            <button className="docs-menu-item" onClick={() => { setShowFormat(v=>!v); setShowFile(false); setShowInsert(false); }}>Format</button>
+            <button
+              className="docs-menu-item"
+              onClick={() => {
+                setShowFormat((v) => !v);
+                setShowFile(false);
+                setShowInsert(false);
+              }}
+            >
+              Format
+            </button>
             {showFormat && (
-              <div className="docs-menu-list" role="menu" onMouseLeave={() => setShowFormat(false)}>
-                <button role="menuitem" onClick={() => { setShowFormat(false); setLineHeight(1.2); }}>Line spacing 1.2</button>
-                <button role="menuitem" onClick={() => { setShowFormat(false); setLineHeight(1.5); }}>Line spacing 1.5</button>
-                <button role="menuitem" onClick={() => { setShowFormat(false); setLineHeight(1.75); }}>Line spacing 1.75</button>
+              <div
+                className="docs-menu-list"
+                role="menu"
+                onMouseLeave={() => setShowFormat(false)}
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFormat(false);
+                    setLineHeight(1.2);
+                  }}
+                >
+                  Line spacing 1.2
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFormat(false);
+                    setLineHeight(1.5);
+                  }}
+                >
+                  Line spacing 1.5
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFormat(false);
+                    setLineHeight(1.75);
+                  }}
+                >
+                  Line spacing 1.75
+                </button>
                 <div className="docs-menu-sep" />
-                <button role="menuitem" onClick={() => { setShowFormat(false); increaseIndent(); }}>Increase indent</button>
-                <button role="menuitem" onClick={() => { setShowFormat(false); decreaseIndent(); }}>Decrease indent</button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFormat(false);
+                    increaseIndent();
+                  }}
+                >
+                  Increase indent
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFormat(false);
+                    decreaseIndent();
+                  }}
+                >
+                  Decrease indent
+                </button>
                 <div className="docs-menu-sep" />
-                <button role="menuitem" onClick={() => { setShowFormat(false); exec("insertUnorderedList"); }}>Bulleted list</button>
-                <button role="menuitem" onClick={() => { setShowFormat(false); exec("insertOrderedList"); }}>Numbered list</button>
-                <button role="menuitem" onClick={() => { setShowFormat(false); clearFormatting(); }}>Clear formatting</button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFormat(false);
+                    exec("insertUnorderedList");
+                  }}
+                >
+                  Bulleted list
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFormat(false);
+                    exec("insertOrderedList");
+                  }}
+                >
+                  Numbered list
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setShowFormat(false);
+                    clearFormatting();
+                  }}
+                >
+                  Clear formatting
+                </button>
               </div>
             )}
           </div>
-          {['Edit','View','Tools','Extensions','Help'].map((m) => (
-            <button key={m} className="docs-menu-item" type="button">{m}</button>
+          {["Edit", "View", "Tools", "Extensions", "Help"].map((m) => (
+            <button key={m} className="docs-menu-item" type="button">
+              {m}
+            </button>
           ))}
         </nav>
         <div className="docs-menubar-right">
           {Array.isArray(presence) && presence.length > 0 && (
             <div className="docs-collab-badge">
-              {presence.map((p: any) => (
+              {(presence as Array<{ userId: string }>).map((p) => (
                 <div key={p.userId} className="docs-collab-user">
-                  <span className="docs-collab-avatar">{String(p.userId).slice(0, 2).toUpperCase()}</span>
+                  <span className="docs-collab-avatar">
+                    {String(p.userId).slice(0, 2).toUpperCase()}
+                  </span>
                 </div>
               ))}
             </div>
@@ -848,206 +1480,472 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
               <span>Resolve</span>
             </button>
           )}
-          <button className="docs-share" title="AI Assistant" onClick={() => setShowAI(v=>!v)}>
+          <button
+            className="docs-share"
+            title="AI Assistant"
+            onClick={() => setShowAI((v) => !v)}
+          >
             <FiZap />
             <span>AI</span>
           </button>
-         
         </div>
       </div>
 
       {/* Workspace: main + AI dock */}
       <div className="docs-workspace">
         <div className="docs-main">
-
-      {/* Formatting toolbar (row 2) */}
-      <div className="docs-toolbar">
-        <div className="docs-toolbar-left" role="toolbar" aria-label="Document formatting toolbar">
-          <div className="docs-controls">
-            <div className="docs-group">
-              <button className="docs-btn" title="Menus"><FiChevronDown /></button>
-              <button className="docs-btn" onClick={() => exec("undo")} title="Undo"><FiRotateCcw /></button>
-              <button className="docs-btn" onClick={() => exec("redo")} title="Redo"><FiRotateCw /></button>
-              <button className="docs-btn" title="Print"><FiType /></button>
-            </div>
-
-            {/* Group: styles */}
-            <div className="docs-group">
-              <select aria-label="Text style" onChange={(e) => applyHeading(e.target.value)} className="docs-select">
-                {HEADINGS.map((h) => (
-                  <option key={h.value} value={h.value}>{h.label}</option>
-                ))}
-              </select>
-              <select aria-label="Font" onChange={(e) => applyFont(e.target.value)} className="docs-select">
-                {FONT_FAMILIES.map((f) => (
-                  <option key={f} value={f}>{f.split(",")[0]}</option>
-                ))}
-              </select>
-              <select aria-label="Font size" onChange={(e) => applyFontSize(e.target.value)} className="docs-select">
-                {FONT_SIZES.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Group: inline formatting */}
-            <div className="docs-group">
-              <button className="docs-btn" onClick={() => exec("bold")} title="Bold (Ctrl+B)"><FiBold /></button>
-              <button className="docs-btn" onClick={() => exec("italic")} title="Italic (Ctrl+I)"><FiItalic /></button>
-              <button className="docs-btn" onClick={() => exec("underline")} title="Underline (Ctrl+U)"><FiUnderline /></button>
-              <button className="docs-btn" onClick={clearFormatting} title="Clear formatting"><FiSlash /></button>
-            </div>
-
-            {/* Group: lists */}
-            <div className="docs-group">
-              <button className="docs-btn" onClick={() => exec("insertUnorderedList")} title="Bulleted list"><FiList /></button>
-              <button className="docs-btn" onClick={() => exec("insertOrderedList")} title="Numbered list"><FiList /></button>
-            </div>
-
-            {/* Group: alignment */}
-            <div className="docs-group">
-              <button className="docs-btn" onClick={() => exec("justifyLeft")} title="Align left"><FiAlignLeft /></button>
-              <button className="docs-btn" onClick={() => exec("justifyCenter")} title="Align center"><FiAlignCenter /></button>
-              <button className="docs-btn" onClick={() => exec("justifyRight")} title="Align right"><FiAlignRight /></button>
-              <button className="docs-btn" onClick={() => exec("justifyFull")} title="Justify"><FiAlignJustify /></button>
-            </div>
-
-            {/* Group: insert */}
-            <div className="docs-group">
-              <button className="docs-btn" onClick={createLink} title="Insert link"><FiLink /></button>
-              <button className="docs-btn" onClick={unlink} title="Remove link"><FiX /></button>
-              <button className="docs-btn" onClick={onPickImage} title="Insert image"><FiImage /></button>
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
-              <button className="docs-btn" onClick={insertTable} title="Insert table"><FiGrid /></button>
-            </div>
-
-            {/* Group: history */}
-            <div className="docs-group">
-              <button className="docs-btn" onClick={() => exec("undo")} title="Undo"><FiRotateCcw /></button>
-              <button className="docs-btn" onClick={() => exec("redo")} title="Redo"><FiRotateCw /></button>
-            </div>
-
-            {/* Group: colors */}
-            <div className="docs-group">
-              <label className="docs-color" title="Text color">
-                <FiDroplet />
-                <input type="color" onChange={(e) => applyColor(e.target.value)} aria-label="Text color" />
-              </label>
-              <label className="docs-color" title="Highlight color">
-                <span className="docs-highlight-swatch" />
-                <input type="color" onChange={(e) => applyBg(e.target.value)} aria-label="Highlight color" />
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className="docs-toolbar-right">
-          <select aria-label="Page size" value={pageSize} onChange={(e) => { setPageSize(e.target.value as PageSize); setDirty(true); }} className="docs-select">
-            <option value="A4">A4</option>
-            <option value="Letter">Letter</option>
-          </select>
-          <button className="docs-zoom-btn" onClick={toggleOrientation} title="Toggle orientation">
-            {orientation === "portrait" ? <FiType /> : <FiType />}
-          </button>
-          <button className="docs-zoom-btn" onClick={() => { setDarkPage((v) => !v); setDirty(true); }} title="Toggle page theme">
-            {darkPage ? <FiSun /> : <FiMoon />}
-          </button>
-          <button className="docs-zoom-btn" onClick={addPage} title="Add page"><FiFilePlus /></button>
-          <div className="docs-divider" />
-          <div className="docs-menu">
-            <button className="docs-zoom-btn" onClick={() => setShowDownload((v) => !v)} title="Download">
-              <FiDownload />
-              <FiChevronDown />
-            </button>
-            {showDownload && (
-              <div className="docs-menu-list" role="menu" onMouseLeave={() => setShowDownload(false)}>
-                <button role="menuitem" onClick={() => { setShowDownload(false); exportPdf(); }}>Download as PDF</button>
-                <button role="menuitem" onClick={() => { setShowDownload(false); exportDoc(); }}>Download as Word (.doc)</button>
-              </div>
-            )}
-          </div>
-          <div className="docs-divider" />
-          <button className="docs-zoom-btn" onClick={zoomOut} title="Zoom out"><FiMinus /></button>
-          <span className="docs-zoom-label">{Math.round(zoom * 100)}%</span>
-          <button className="docs-zoom-btn" onClick={zoomIn} title="Zoom in"><FiPlus /></button>
-
-          <div className="docs-divider" />
-          <button
-            className="docs-primary-btn outline"
-            onClick={async () => {
-              try {
-                const htmlPages = Array.from(pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []).map((n) => n.innerHTML || defaultHtml());
-                if (!docId) {
-                  const res = await createBlog({ title: title || "Untitled document", htmlPages, status: 'draft' });
-                  setDocId(res.id);
-                } else {
-                  await updateBlog({ id: docId, title: title || "Untitled document", htmlPages, status: 'draft' });
-                }
-                // notify collab server
-                try {
-                  const uid = getUserIdFromToken() || 'anon';
-                  collabRef.current?.saveDraft(docId || '', uid, { contentHTML: htmlPages.join('<div style="page-break-after:always"></div>') });
-                } catch {}
-                setSavedAt(Date.now());
-                setDirty(false);
-              } catch (e: any) {
-                alert(e?.message || 'Failed to save');
-              }
-            }}
-          >
-            <FiSave />
-            <span>Save draft</span>
-          </button>
-          <button className="docs-primary-btn" onClick={async()=>{
-            try {
-              const htmlPages = Array.from(pageContainerRef.current?.querySelectorAll<HTMLDivElement>(".docs-page") || []).map((n) => n.innerHTML || defaultHtml());
-              if (!docId) {
-                const res = await createBlog({ title: title || "Untitled document", htmlPages, status: 'published' });
-                setDocId(res.id);
-              } else {
-                await updateBlog({ id: docId, title: title || "Untitled document", htmlPages, status: 'published' });
-              }
-              try {
-                const uid = getUserIdFromToken() || 'anon';
-                collabRef.current?.saveDraft(docId || '', uid, { contentHTML: htmlPages.join('<div style="page-break-after:always"></div>') });
-              } catch {}
-              setSavedAt(Date.now());
-              setDirty(false);
-              alert('Published!');
-            } catch(e:any) { alert(e?.message || 'Failed to publish'); }
-          }}>
-            <FiSend />
-            <span>Publish</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Canvas area */}
-      <div className="docs-canvas" ref={pageContainerRef}>
-        {[...Array(pages)].map((_, idx) => (
-          <div key={idx} className="docs-page-wrapper" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+          {/* Formatting toolbar (row 2) */}
+          <div className="docs-toolbar">
             <div
-              className={`docs-page editor-content ${darkPage ? "docs-page-dark" : ""}`}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={() => { setDirty(true); broadcastContent(); }}
-              onPaste={onPaste}
-              onMouseUp={updateSavedRange}
-              onKeyUp={updateSavedRange}
-              data-placeholder="Start typing…"
-              style={{ width: pageDims.width, minHeight: pageDims.height }}
-            />
+              className="docs-toolbar-left"
+              role="toolbar"
+              aria-label="Document formatting toolbar"
+            >
+              <div className="docs-controls">
+                <div className="docs-group">
+                  <button className="docs-btn" title="Menus">
+                    <FiChevronDown />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("undo")}
+                    title="Undo"
+                  >
+                    <FiRotateCcw />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("redo")}
+                    title="Redo"
+                  >
+                    <FiRotateCw />
+                  </button>
+                  <button className="docs-btn" title="Print">
+                    <FiType />
+                  </button>
+                </div>
+
+                {/* Group: styles */}
+                <div className="docs-group">
+                  <select
+                    aria-label="Text style"
+                    onChange={(e) => applyHeading(e.target.value)}
+                    className="docs-select"
+                  >
+                    {HEADINGS.map((h) => (
+                      <option key={h.value} value={h.value}>
+                        {h.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Font"
+                    onChange={(e) => applyFont(e.target.value)}
+                    className="docs-select"
+                  >
+                    {FONT_FAMILIES.map((f) => (
+                      <option key={f} value={f}>
+                        {f.split(",")[0]}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    aria-label="Font size"
+                    onChange={(e) => applyFontSize(e.target.value)}
+                    className="docs-select"
+                  >
+                    {FONT_SIZES.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Group: inline formatting */}
+                <div className="docs-group">
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("bold")}
+                    title="Bold (Ctrl+B)"
+                  >
+                    <FiBold />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("italic")}
+                    title="Italic (Ctrl+I)"
+                  >
+                    <FiItalic />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("underline")}
+                    title="Underline (Ctrl+U)"
+                  >
+                    <FiUnderline />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={clearFormatting}
+                    title="Clear formatting"
+                  >
+                    <FiSlash />
+                  </button>
+                </div>
+
+                {/* Group: lists */}
+                <div className="docs-group">
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("insertUnorderedList")}
+                    title="Bulleted list"
+                  >
+                    <FiList />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("insertOrderedList")}
+                    title="Numbered list"
+                  >
+                    <FiList />
+                  </button>
+                </div>
+
+                {/* Group: alignment */}
+                <div className="docs-group">
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("justifyLeft")}
+                    title="Align left"
+                  >
+                    <FiAlignLeft />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("justifyCenter")}
+                    title="Align center"
+                  >
+                    <FiAlignCenter />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("justifyRight")}
+                    title="Align right"
+                  >
+                    <FiAlignRight />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("justifyFull")}
+                    title="Justify"
+                  >
+                    <FiAlignJustify />
+                  </button>
+                </div>
+
+                {/* Group: insert */}
+                <div className="docs-group">
+                  <button
+                    className="docs-btn"
+                    onClick={createLink}
+                    title="Insert link"
+                  >
+                    <FiLink />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={unlink}
+                    title="Remove link"
+                  >
+                    <FiX />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={onPickImage}
+                    title="Insert image"
+                  >
+                    <FiImage />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={onFileChange}
+                  />
+                  <button
+                    className="docs-btn"
+                    onClick={insertTable}
+                    title="Insert table"
+                  >
+                    <FiGrid />
+                  </button>
+                </div>
+
+                {/* Group: history */}
+                <div className="docs-group">
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("undo")}
+                    title="Undo"
+                  >
+                    <FiRotateCcw />
+                  </button>
+                  <button
+                    className="docs-btn"
+                    onClick={() => exec("redo")}
+                    title="Redo"
+                  >
+                    <FiRotateCw />
+                  </button>
+                </div>
+
+                {/* Group: colors */}
+                <div className="docs-group">
+                  <label className="docs-color" title="Text color">
+                    <FiDroplet />
+                    <input
+                      type="color"
+                      onChange={(e) => applyColor(e.target.value)}
+                      aria-label="Text color"
+                    />
+                  </label>
+                  <label className="docs-color" title="Highlight color">
+                    <span className="docs-highlight-swatch" />
+                    <input
+                      type="color"
+                      onChange={(e) => applyBg(e.target.value)}
+                      aria-label="Highlight color"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="docs-toolbar-right">
+              <select
+                aria-label="Page size"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(e.target.value as PageSize);
+                  setDirty(true);
+                }}
+                className="docs-select"
+              >
+                <option value="A4">A4</option>
+                <option value="Letter">Letter</option>
+              </select>
+              <button
+                className="docs-zoom-btn"
+                onClick={toggleOrientation}
+                title="Toggle orientation"
+              >
+                {orientation === "portrait" ? <FiType /> : <FiType />}
+              </button>
+              <button
+                className="docs-zoom-btn"
+                onClick={() => {
+                  setDarkPage((v) => !v);
+                  setDirty(true);
+                }}
+                title="Toggle page theme"
+              >
+                {darkPage ? <FiSun /> : <FiMoon />}
+              </button>
+              <button
+                className="docs-zoom-btn"
+                onClick={addPage}
+                title="Add page"
+              >
+                <FiFilePlus />
+              </button>
+              <div className="docs-divider" />
+              <div className="docs-menu">
+                <button
+                  className="docs-zoom-btn"
+                  onClick={() => setShowDownload((v) => !v)}
+                  title="Download"
+                >
+                  <FiDownload />
+                  <FiChevronDown />
+                </button>
+                {showDownload && (
+                  <div
+                    className="docs-menu-list"
+                    role="menu"
+                    onMouseLeave={() => setShowDownload(false)}
+                  >
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setShowDownload(false);
+                        exportPdf();
+                      }}
+                    >
+                      Download as PDF
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setShowDownload(false);
+                        exportDoc();
+                      }}
+                    >
+                      Download as Word (.doc)
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="docs-divider" />
+              <button
+                className="docs-zoom-btn"
+                onClick={zoomOut}
+                title="Zoom out"
+              >
+                <FiMinus />
+              </button>
+              <span className="docs-zoom-label">{Math.round(zoom * 100)}%</span>
+              <button
+                className="docs-zoom-btn"
+                onClick={zoomIn}
+                title="Zoom in"
+              >
+                <FiPlus />
+              </button>
+
+              <div className="docs-divider" />
+              <button
+                className="docs-primary-btn outline"
+                onClick={async () => {
+                  try {
+                    const htmlPages = Array.from(
+                      pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+                        ".docs-page"
+                      ) || []
+                    ).map((n) => n.innerHTML || defaultHtml());
+                    if (!docId) {
+                      const res = await createBlog({
+                        title: title || "Untitled document",
+                        htmlPages,
+                        status: "draft",
+                      });
+                      setDocId(res.id);
+                    } else {
+                      await updateBlog({
+                        id: docId,
+                        title: title || "Untitled document",
+                        htmlPages,
+                        status: "draft",
+                      });
+                    }
+                    // notify collab server
+                    try {
+                      const uid = getUserIdFromToken() || "anon";
+                      collabRef.current?.saveDraft(docId || "", uid, {
+                        contentHTML: htmlPages.join(
+                          '<div style="page-break-after:always"></div>'
+                        ),
+                      });
+                    } catch {}
+                    setSavedAt(Date.now());
+                    setDirty(false);
+                  } catch (e: unknown) {
+                    alert((e as Error)?.message || "Failed to save");
+                  }
+                }}
+              >
+                <FiSave />
+                <span>Save draft</span>
+              </button>
+              <button
+                className="docs-primary-btn"
+                onClick={async () => {
+                  try {
+                    const htmlPages = Array.from(
+                      pageContainerRef.current?.querySelectorAll<HTMLDivElement>(
+                        ".docs-page"
+                      ) || []
+                    ).map((n) => n.innerHTML || defaultHtml());
+                    if (!docId) {
+                      const res = await createBlog({
+                        title: title || "Untitled document",
+                        htmlPages,
+                        status: "published",
+                      });
+                      setDocId(res.id);
+                    } else {
+                      await updateBlog({
+                        id: docId,
+                        title: title || "Untitled document",
+                        htmlPages,
+                        status: "published",
+                      });
+                    }
+                    try {
+                      const uid = getUserIdFromToken() || "anon";
+                      collabRef.current?.saveDraft(docId || "", uid, {
+                        contentHTML: htmlPages.join(
+                          '<div style="page-break-after:always"></div>'
+                        ),
+                      });
+                    } catch {}
+                    setSavedAt(Date.now());
+                    setDirty(false);
+                    alert("Published!");
+                  } catch (e: unknown) {
+                    alert((e as Error)?.message || "Failed to publish");
+                  }
+                }}
+              >
+                <FiSend />
+                <span>Publish</span>
+              </button>
+            </div>
           </div>
-        ))}
-        <div className="docs-status">{isDirty ? "Saving…" : savedAt ? `Saved ${timeAgo(savedAt)}` : ""}</div>
-      </div>
+
+          {/* Canvas area */}
+          <div className="docs-canvas" ref={pageContainerRef}>
+            {[...Array(pages)].map((_, idx) => (
+              <div
+                key={idx}
+                className="docs-page-wrapper"
+                style={{
+                  transform: `scale(${zoom})`,
+                  transformOrigin: "top center",
+                }}
+              >
+                <div
+                  className={`docs-page editor-content ${
+                    darkPage ? "docs-page-dark" : ""
+                  }`}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={() => {
+                    setDirty(true);
+                    broadcastContent();
+                  }}
+                  onPaste={onPaste}
+                  onMouseUp={updateSavedRange}
+                  onKeyUp={updateSavedRange}
+                  data-placeholder="Start typing…"
+                  style={{ width: pageDims.width, minHeight: pageDims.height }}
+                />
+              </div>
+            ))}
+            <div className="docs-status">
+              {isDirty ? "Saving…" : savedAt ? `Saved ${timeAgo(savedAt)}` : ""}
+            </div>
+          </div>
         </div>
 
         {showAI && (
           <aside className="hidden lg:flex fixed inset-y-0 right-0 w-80 flex-col border-l border-zinc-200 bg-zinc-50/90 backdrop-blur-sm">
             <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200">
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">AI Assistant</p>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+                  AI Assistant
+                </p>
                 <p className="text-sm font-semibold text-zinc-900">New chat</p>
               </div>
               <button
@@ -1064,7 +1962,9 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
               {aiSelection && (
                 <div className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
                   <p className="font-medium mb-1">Selected text</p>
-                  <p className="line-clamp-4 whitespace-pre-wrap">{aiSelection}</p>
+                  <p className="line-clamp-4 whitespace-pre-wrap">
+                    {aiSelection}
+                  </p>
                 </div>
               )}
 
@@ -1094,11 +1994,15 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
                 Ask AI to {aiMode === "write" && "draft"}
                 {aiMode === "rewrite" && "rewrite selected"}
                 {aiMode === "continue" && "continue"}
-                {aiMode === "summarize" && "summarize"} content. Changes are inserted directly into the document.
+                {aiMode === "summarize" && "summarize"} content. Changes are
+                inserted directly into the document.
               </p>
             </div>
 
-            <form onSubmit={handleAiSubmit} className="border-t border-zinc-200 px-3 py-3 space-y-2">
+            <form
+              onSubmit={handleAiSubmit}
+              className="border-t border-zinc-200 px-3 py-3 space-y-2"
+            >
               <textarea
                 rows={3}
                 className="w-full resize-none rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900"
@@ -1108,7 +2012,9 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
               />
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-zinc-300 text-[10px]">⏎</span>
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-zinc-300 text-[10px]">
+                    ⏎
+                  </span>
                   <span>to send</span>
                 </div>
                 <button
@@ -1131,8 +2037,8 @@ function defaultHtml() {
   return "<p><br/></p>";
 }
 
-function debounce<T extends (...args: any[]) => void>(fn: T, wait = 300) {
-  let t: any;
+function debounce<T extends (...args: unknown[]) => void>(fn: T, wait = 300) {
+  let t: ReturnType<typeof setTimeout>;
   return (...args: Parameters<T>) => {
     clearTimeout(t);
     t = setTimeout(() => fn(...args), wait);
@@ -1178,7 +2084,9 @@ function getCursorLocation(root: HTMLElement, selection: Selection) {
   const pages = Array.from(root.querySelectorAll<HTMLDivElement>(".docs-page"));
   if (!pages.length) return null;
 
-  let pageIndex = pages.findIndex((p) => isInsideEditor(selection.anchorNode!, p));
+  const pageIndex = pages.findIndex((p) =>
+    isInsideEditor(selection.anchorNode!, p)
+  );
   if (pageIndex === -1) return null;
   const page = pages[pageIndex];
 
@@ -1197,31 +2105,35 @@ function getCursorLocation(root: HTMLElement, selection: Selection) {
   return { pageIndex, offset };
 }
 
-// Insert chosen AI title into the top of the editor content as H1
-function insertTitleIntoEditor(t: string) {
-  const first = document.querySelector<HTMLDivElement>(".docs-page");
-  if (!first) return;
-  const h1 = document.createElement("h1");
-  h1.textContent = t;
-  const spacer = document.createElement("p");
-  spacer.innerHTML = "<br/>";
-  first.prepend(spacer);
-  first.prepend(h1);
-}
-
-function renderRemoteCursors(root: HTMLElement, presence: any, myUserId: string) {
+function renderRemoteCursors(
+  root: HTMLElement,
+  presence: unknown,
+  myUserId: string
+) {
   const pages = Array.from(root.querySelectorAll<HTMLDivElement>(".docs-page"));
   if (!pages.length) return;
 
   pages.forEach((page) => {
-    page.querySelectorAll<HTMLElement>('.docs-remote-cursor').forEach((el) => el.remove());
+    page
+      .querySelectorAll<HTMLElement>(".docs-remote-cursor")
+      .forEach((el) => el.remove());
   });
 
-  const entries = Array.isArray(presence) ? presence : [];
+  const entries = Array.isArray(presence)
+    ? (presence as Array<{
+        userId: string;
+        cursor: { pageIndex: number; offset: number } | null;
+      }>)
+    : [];
   for (const p of entries) {
     if (!p || !p.cursor) continue;
     const { userId, cursor } = p;
-    if (!cursor || typeof cursor.pageIndex !== 'number' || typeof cursor.offset !== 'number') continue;
+    if (
+      !cursor ||
+      typeof cursor.pageIndex !== "number" ||
+      typeof cursor.offset !== "number"
+    )
+      continue;
     const pageIndex = cursor.pageIndex;
     const offset = cursor.offset;
     const page = pages[pageIndex];
@@ -1233,7 +2145,7 @@ function renderRemoteCursors(root: HTMLElement, presence: any, myUserId: string)
     let targetNode: Node | null = null;
     let targetOffset = 0;
     while (textNode) {
-      const len = (textNode.textContent || '').length;
+      const len = (textNode.textContent || "").length;
       if (remaining <= len) {
         targetNode = textNode;
         targetOffset = remaining;
@@ -1247,7 +2159,7 @@ function renderRemoteCursors(root: HTMLElement, presence: any, myUserId: string)
       const lastText = walker.currentNode;
       if (!lastText || !lastText.textContent) continue;
       targetNode = lastText;
-      targetOffset = (lastText.textContent || '').length;
+      targetOffset = (lastText.textContent || "").length;
     }
 
     const range = document.createRange();
@@ -1265,38 +2177,45 @@ function renderRemoteCursors(root: HTMLElement, presence: any, myUserId: string)
     const top = rect.top - pageRect.top;
     const left = rect.left - pageRect.left;
 
-    const hue = Math.abs((userId || myUserId || '').split('').reduce((acc: number, ch: string) => acc + ch.charCodeAt(0), 0)) % 360;
+    const hue =
+      Math.abs(
+        (userId || myUserId || "")
+          .split("")
+          .reduce((acc: number, ch: string) => acc + ch.charCodeAt(0), 0)
+      ) % 360;
     const color = `hsl(${hue}, 80%, 50%)`;
 
-    const caret = document.createElement('div');
-    caret.className = 'docs-remote-cursor';
-    caret.style.position = 'absolute';
+    const caret = document.createElement("div");
+    caret.className = "docs-remote-cursor";
+    caret.style.position = "absolute";
     caret.style.left = `${left}px`;
     caret.style.top = `${top - 2}px`;
-    caret.style.width = '3px';
-    caret.style.height = '22px';
-    caret.style.borderRadius = '999px';
+    caret.style.width = "3px";
+    caret.style.height = "22px";
+    caret.style.borderRadius = "999px";
     caret.style.backgroundColor = color;
     caret.style.boxShadow = `0 0 0 1px rgba(255,255,255,0.9), 0 0 4px ${color}`;
-    caret.style.zIndex = '10';
+    caret.style.zIndex = "10";
 
-    const label = document.createElement('div');
-    label.textContent = String(userId || myUserId || '?').slice(0, 2).toUpperCase();
-    label.style.position = 'absolute';
+    const label = document.createElement("div");
+    label.textContent = String(userId || myUserId || "?")
+      .slice(0, 2)
+      .toUpperCase();
+    label.style.position = "absolute";
     label.style.left = `${left + 8}px`;
     label.style.top = `${Math.max(0, top - 22)}px`;
-    label.style.padding = '2px 6px';
-    label.style.fontSize = '11px';
-    label.style.borderRadius = '999px';
+    label.style.padding = "2px 6px";
+    label.style.fontSize = "11px";
+    label.style.borderRadius = "999px";
     label.style.backgroundColor = color;
-    label.style.color = '#fff';
-    label.style.whiteSpace = 'nowrap';
-    label.style.fontWeight = '600';
-    label.style.boxShadow = '0 1px 3px rgba(15,23,42,0.45)';
-    label.style.zIndex = '10';
-    label.className = 'docs-remote-cursor';
+    label.style.color = "#fff";
+    label.style.whiteSpace = "nowrap";
+    label.style.fontWeight = "600";
+    label.style.boxShadow = "0 1px 3px rgba(15,23,42,0.45)";
+    label.style.zIndex = "10";
+    label.className = "docs-remote-cursor";
 
-    page.style.position = page.style.position || 'relative';
+    page.style.position = page.style.position || "relative";
     page.appendChild(caret);
     page.appendChild(label);
   }
