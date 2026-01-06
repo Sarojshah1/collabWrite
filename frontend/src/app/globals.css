@@ -114,7 +114,8 @@ h4 {
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
-  max-width: 960px;
+  width: 100%;
+  max-width: none;
   margin: 0;
 }
 .docs-menubar-left {
@@ -130,7 +131,7 @@ h4 {
   font-size: 1rem;
   outline: none;
   color: #0f172a;
-  min-width: 220px;
+  min-width: 150px;
 }
 .docs-menubar-title:focus {
   background: #fff;

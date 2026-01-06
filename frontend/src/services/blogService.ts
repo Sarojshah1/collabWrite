@@ -2,7 +2,7 @@ import http from "@/lib/http";
 import { blogSchema, blogListResponseSchema, blogResponseSchema } from "@/schemas/blog";
 import { z } from "zod";
 
-export type BlogStatus = "draft" | "published";
+export type BlogStatus = "draft" | "pending" | "published" | "rejected";
 
 export type BlogAuthor = z.infer<typeof blogSchema>["author"] extends infer A
   ? A extends { _id: string; name: string; avatar?: string | null }
@@ -106,7 +106,7 @@ export async function addComment(blogId: string, text: string): Promise<{ id: st
   return data.comment;
 }
 
-export async function updateBlog(params: { id: string; title?: string; htmlPages?: string[]; status?: BlogStatus; tags?: string[]; collaborators?: string[] }) {
+export async function updateBlog(params: { id: string; title?: string; htmlPages?: string[]; status?: BlogStatus; tags?: string[]; collaborators?: Array<string | { user: string; role: string }> }) {
   const body: Record<string, unknown> = {};
   if (typeof params.title === "string") body.title = params.title;
   if (Array.isArray(params.htmlPages)) {
@@ -130,4 +130,9 @@ export async function toggleBookmark(blogId: string): Promise<{ bookmarked: bool
 // Reuse generic listBlogs for search, specific param handling can be done here if needed
 export async function searchBlogs(query: string) {
   return listBlogs({ q: query, sort: 'mostViewed' });
+}
+
+export async function deleteBlog(id: string): Promise<boolean> {
+  await http.delete(`/blog/${id}`);
+  return true;
 }

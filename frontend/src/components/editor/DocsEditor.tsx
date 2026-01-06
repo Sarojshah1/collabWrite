@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { generateTitle } from "@/services/aiService";
+import { generateBlog, generateTitle } from "@/services/aiService";
 import {
   createBlog,
   updateBlog,
@@ -127,12 +127,34 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
   const [showTagsModal, setShowTagsModal] = useState(false);
   const [tagInput, setTagInput] = useState("");
 
-  const [collaborators, setCollaborators] = useState<string[]>([]);
+  const [collaborators, setCollaborators] = useState<
+    Array<{ user: string; role: "viewer" | "editor" }>
+  >([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"viewer" | "editor">("viewer");
   const [inviteStatus, setInviteStatus] = useState("");
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserInfo, setCurrentUserInfo] = useState<{
+    name: string;
+    avatar?: string;
+  } | null>(null);
+
+  const colors = [
+    "#f87171",
+    "#fb923c",
+    "#fbbf24",
+    "#a3e635",
+    "#34d399",
+    "#22d3ee",
+    "#818cf8",
+    "#e879f9",
+  ];
+  const myColor = useMemo(
+    () => colors[Math.floor(Math.random() * colors.length)],
+    []
+  );
 
   const updateSavedRange = () => {
     const sel = window.getSelection();
@@ -174,7 +196,13 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
         let user: { id: string } | null = null;
         try {
           user = await userService.me();
-          if (mounted && user) setCurrentUserId(user.id);
+          if (mounted && user) {
+            setCurrentUserId(user.id || (user as any)._id);
+            setCurrentUserInfo({
+              name: user.name,
+              avatar: user.avatar || undefined,
+            });
+          }
         } catch (e) {
           console.warn("User not logged in or failed to fetch me", e);
         }
@@ -188,9 +216,10 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
           setTags(blog.tags || []);
           setCollaborators(
             Array.isArray(blog.collaborators)
-              ? blog.collaborators.map((c: any) =>
-                  typeof c === "string" ? c : c._id
-                )
+              ? blog.collaborators.map((c: any) => ({
+                  user: c.user?._id || c.user || c, // handle populated or raw
+                  role: c.role || "viewer",
+                }))
               : []
           );
           if (blog.bookmarks && user?.id) {
@@ -273,6 +302,10 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     (async () => {
       if (!docId) return;
       const userId = myUserIdRef.current;
+      // Wait for user info if possible, but don't block too long
+      if (!currentUserInfo && userId !== "anon") {
+        // short wait or just proceed
+      }
       try {
         if (!collabRef.current) {
           const client = await connectCollab();
@@ -325,7 +358,11 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
               console.log("[collab] remote edit applied", { blogId, fromUser });
           });
         }
-        collabRef.current?.join(docId, userId, null);
+        collabRef.current?.join(docId, userId, null, {
+          name: currentUserInfo?.name || "Anonymous",
+          avatar: currentUserInfo?.avatar,
+          color: myColor,
+        });
         if (typeof window !== "undefined")
           console.log("[collab] joined doc", { docId, userId });
       } catch {}
@@ -521,7 +558,7 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
 
   const saveMetadata = async (
     newTags?: string[],
-    newCollaborators?: string[]
+    newCollaborators?: Array<{ user: string; role: string }>
   ) => {
     if (!initialDocId && !docId) {
       // Only save to backend if it's a real doc
@@ -866,12 +903,37 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
     w.print();
   }
 
+  const canEdit = useMemo(() => {
+    if (!docId || !currentUserId) return true; // default allow for new/draft
+    // If explicit permissions are loaded:
+    // 1. Author can always edit
+    // 2. Collaborators with 'editor' role can edit
+    // 3. Viewers cannot
+    // (We also need to know if we are author - stored in state or derived?)
+    // For now, let's rely on the collaborators list which we loaded.
+    // If I am not author, and I am in collaborators list with role 'viewer', then false.
+
+    // A simpler way: we don't have author ID stored explicitly in state except via initial load?
+    // We didn't store authorID in state. Let's add it or derive it.
+    // Assuming for now if we are in collaborators list as viewer, we block.
+    // If we are author, we won't be in collaborators list usually.
+
+    const myCollab = collaborators.find((c) => c.user === currentUserId);
+    if (myCollab && myCollab.role === "viewer") return false;
+    return true;
+  }, [docId, currentUserId, collaborators]);
+
   return (
-    <div className="docs-root">
+    <div className={`docs-root ${!canEdit ? "read-only" : ""}`}>
       {/* Menubar (row 1) */}
       <div className="docs-menubar">
-        <div className="docs-menubar-left">
+        <div
+          className={`docs-menubar-left ${
+            !canEdit ? "opacity-50 pointer-events-none" : ""
+          }`}
+        >
           <input
+            disabled={!canEdit}
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
@@ -1112,8 +1174,13 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
                               (u) => u.email === inviteEmail
                             );
                             if (user) {
-                              if (!collaborators.includes(user.id)) {
-                                const newCollabs = [...collaborators, user.id];
+                              if (
+                                !collaborators.find((c) => c.user === user.id)
+                              ) {
+                                const newCollabs = [
+                                  ...collaborators,
+                                  { user: user.id, role: inviteRole },
+                                ];
                                 setCollaborators(newCollabs);
                                 await saveMetadata(undefined, newCollabs);
                                 setInviteStatus("Invited!");
@@ -1131,6 +1198,16 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
                       >
                         Invite
                       </button>
+                      <select
+                        className="docs-select"
+                        value={inviteRole}
+                        onChange={(e) =>
+                          setInviteRole(e.target.value as "viewer" | "editor")
+                        }
+                      >
+                        <option value="viewer">Viewer</option>
+                        <option value="editor">Editor</option>
+                      </select>
                     </div>
                     {inviteStatus && (
                       <p className="text-xs mt-2 text-zinc-600">
@@ -1143,7 +1220,15 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
                       </h4>
                       <ul className="text-sm text-zinc-500 list-disc pl-4">
                         {collaborators.map((c) => (
-                          <li key={c}>{c}</li>
+                          <li
+                            key={c.user}
+                            className="flex items-center justify-between"
+                          >
+                            <span>{c.user}</span>
+                            <span className="text-xs bg-zinc-100 px-2 py-1 rounded">
+                              {c.role}
+                            </span>
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -1460,14 +1545,42 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
         </nav>
         <div className="docs-menubar-right">
           {Array.isArray(presence) && presence.length > 0 && (
-            <div className="docs-collab-badge">
-              {(presence as Array<{ userId: string }>).map((p) => (
-                <div key={p.userId} className="docs-collab-user">
-                  <span className="docs-collab-avatar">
-                    {String(p.userId).slice(0, 2).toUpperCase()}
-                  </span>
-                </div>
-              ))}
+            <div className="docs-collab-badge flex items-center gap-[-6px]">
+              {(presence as Array<{ userId: string; userInfo?: any }>).map(
+                (p) => {
+                  const info = p.userInfo;
+                  const letter = info?.name
+                    ? info.name[0].toUpperCase()
+                    : p.userId.slice(0, 1).toUpperCase();
+                  const color = info?.color || "#9ca3af";
+                  return (
+                    <div
+                      key={p.userId}
+                      className="docs-collab-user relative group -ml-2 first:ml-0 transition-transform hover:z-10 hover:scale-110"
+                      title={info?.name || p.userId}
+                    >
+                      <span
+                        className="flex items-center justify-center w-8 h-8 rounded-full border-2 border-white shadow-sm overflow-hidden text-xs font-medium"
+                        style={{ backgroundColor: color, color: "#fff" }}
+                      >
+                        {info?.avatar ? (
+                          <img
+                            src={info.avatar}
+                            alt={info.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          letter
+                        )}
+                      </span>
+                      {/* Tooltip */}
+                      <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 pointer-events-none transition-opacity">
+                        {info?.name || "Unknown"}
+                      </div>
+                    </div>
+                  );
+                }
+              )}
             </div>
           )}
           {docId && (
@@ -1497,7 +1610,9 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
           {/* Formatting toolbar (row 2) */}
           <div className="docs-toolbar">
             <div
-              className="docs-toolbar-left"
+              className={`docs-toolbar-left ${
+                !canEdit ? "opacity-50 pointer-events-none" : ""
+              }`}
               role="toolbar"
               aria-label="Document formatting toolbar"
             >
@@ -1919,7 +2034,7 @@ export default function DocsEditor({ initialDocId }: DocsEditorProps) {
                   className={`docs-page editor-content ${
                     darkPage ? "docs-page-dark" : ""
                   }`}
-                  contentEditable
+                  contentEditable={canEdit}
                   suppressContentEditableWarning
                   onInput={() => {
                     setDirty(true);
@@ -2128,6 +2243,7 @@ function renderRemoteCursors(
   for (const p of entries) {
     if (!p || !p.cursor) continue;
     const { userId, cursor } = p;
+    if (userId === myUserId) continue;
     if (
       !cursor ||
       typeof cursor.pageIndex !== "number" ||

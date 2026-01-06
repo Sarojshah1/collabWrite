@@ -1,4 +1,4 @@
-import Blog from '../models/Blog.js';
+import Blog from "../models/Blog.js";
 
 // In-memory presence store: { [blogId]: { [userId]: { cursor } } }
 const presenceStore = new Map();
@@ -16,12 +16,19 @@ export function getPresence(blogId) {
   return Array.from(blogPresence.entries()).map(([userId, data]) => ({
     userId,
     cursor: data.cursor || null,
+    userInfo: data.userInfo || null,
   }));
 }
 
-export function joinPresence(blogId, userId, cursor = null) {
+export function joinPresence(blogId, userId, cursor = null, userInfo = null) {
   const blogPresence = getOrCreateBlogPresence(blogId);
-  blogPresence.set(userId, { cursor });
+  // Merge with existing if any, to preserve cursor if just updating info, or vice versa
+  const existing = blogPresence.get(userId) || {};
+  blogPresence.set(userId, {
+    ...existing,
+    cursor: cursor ?? existing.cursor,
+    userInfo: userInfo ?? existing.userInfo,
+  });
 }
 
 export function leavePresence(blogId, userId) {
@@ -33,15 +40,15 @@ export function leavePresence(blogId, userId) {
   }
 }
 
-export async function startSession(blogId, userId) {
+export async function startSession(blogId, userId, userInfo) {
   // Minimal session object for now; extend later if you add real session tracking
-  joinPresence(blogId, userId, null);
+  joinPresence(blogId, userId, null, userInfo);
   return { blogId, userId };
 }
 
-export async function joinSession(blogId, userId) {
+export async function joinSession(blogId, userId, userInfo) {
   // Joining a session is currently equivalent to joining presence
-  joinPresence(blogId, userId, null);
+  joinPresence(blogId, userId, null, userInfo);
   return { blogId, userId };
 }
 
@@ -66,13 +73,13 @@ export async function saveDraft(blogId, userId, content) {
       content,
       lastEditAt: new Date(),
       lastUpdatedBy: userId,
-      status: 'draft',
+      status: "draft",
     },
     { new: true }
   );
 
   if (!blog) {
-    throw new Error('Blog not found');
+    throw new Error("Blog not found");
   }
 
   return blog;
@@ -83,6 +90,6 @@ export async function getBlogSnapshot(blogId) {
   if (!blog) return null;
   return {
     blogId: String(blog._id),
-    contentHTML: blog.contentHTML || blog.content || '',
+    contentHTML: blog.contentHTML || blog.content || "",
   };
 }

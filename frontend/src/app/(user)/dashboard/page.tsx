@@ -160,7 +160,7 @@ export default function DashboardPage() {
                           <p className="shrink-0 text-[11px] text-zinc-400">
                             {(b.updatedAt || b.createdAt) &&
                               new Date(
-                                b.updatedAt || b.createdAt
+                                (b.updatedAt || b.createdAt) ?? ""
                               ).toLocaleDateString()}
                           </p>
                         </a>
@@ -503,6 +503,52 @@ export default function DashboardPage() {
                       </svg>
                     </span>
                     View assignments
+                  </a>
+                  <a
+                    href="/dashboard/manage-blogs"
+                    className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+                  >
+                    <span className="text-zinc-500">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                      </svg>
+                    </span>
+                    Manage Blogs
+                  </a>
+                  <a
+                    href="/dashboard/admin/users"
+                    className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+                  >
+                    <span className="text-zinc-500">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                      </svg>
+                    </span>
+                    Manage Users
                   </a>
                 </div>
               </div>

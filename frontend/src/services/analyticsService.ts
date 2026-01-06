@@ -1,58 +1,24 @@
 import http from "@/lib/http";
 
-export type AnalyticsSummaryItem = {
-  type: string;
-  count: number;
+type ApiSuccess<T> = { success: true } & T;
+
+export interface ChartDataPoint {
+  name: string;
+  users: number;
+  blogs: number;
+}
+
+export interface AnalyticsResponse {
+  stats: {
+    totalUsers: number;
+    totalBlogs: number;
+  };
+  chartData: ChartDataPoint[];
+}
+
+export const analyticsService = {
+  async getAnalytics(): Promise<AnalyticsResponse> {
+    const { data } = await http.get<ApiSuccess<AnalyticsResponse>>("/admin/analytics");
+    return data;
+  },
 };
-
-export async function getAnalyticsSummary(days: number = 30): Promise<AnalyticsSummaryItem[]> {
-  const { data } = await http.get<{
-    success: boolean;
-    data: { _id: { type: string }; count: number }[] | { data: { _id: { type: string }; count: number }[] };
-  }>(
-    "/analytics/summary",
-    { params: { days } }
-  );
-  const anyData = data as unknown as Record<string, unknown>;
-  const raw = (anyData?.data?.data || anyData?.data || []) as Array<{ _id?: { type?: string }; count?: number }>;
-  return raw.map((item) => ({ type: item._id?.type || "unknown", count: item.count || 0 }));
-}
-
-export async function recordView(blogId: string) {
-  await http.post("/analytics/record", { blogId, type: "view" });
-}
-
-export async function getAuthorAnalyticsSummary(days: number = 30): Promise<AnalyticsSummaryItem[]> {
-  const { data } = await http.get<{
-    success: boolean;
-    data: { _id: { type: string }; count: number }[] | { data: { _id: { type: string }; count: number }[] };
-  }>(
-    "/analytics/author-summary",
-    { params: { days } }
-  );
-  const anyData = data as unknown as Record<string, unknown>;
-  const raw = (anyData?.data?.data || anyData?.data || []) as Array<{ _id?: { type?: string }; count?: number }>;
-  return raw.map((item) => ({ type: item._id?.type || "unknown", count: item.count || 0 }));
-}
-
-export async function recordLike(blogId: string) {
-  await http.post("/analytics/record", { blogId, type: "like" });
-}
-
-export async function recordComment(blogId: string, text: string) {
-  await http.post("/analytics/record", { blogId, type: "comment", meta: { text } });
-}
-
-export type AuthorDayPoint = {
-  day: string;
-  views: number;
-  likes: number;
-};
-
-export async function getAuthorTimeline(days: number = 30): Promise<AuthorDayPoint[]> {
-  const { data } = await http.get<{ success: boolean; data: { points: AuthorDayPoint[] } }>(
-    "/analytics/author-timeline",
-    { params: { days } }
-  );
-  return data?.data?.points || [];
-}

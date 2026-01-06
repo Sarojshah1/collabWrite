@@ -74,12 +74,23 @@ export const list = async (req, res) => {
     }
 
     const userId = req.user?.id;
-    // Only show published to unauthenticated; for authenticated, show own drafts too
-    if (userId) {
+    // Only show published to unauthenticated; for authenticated, show own drafts too. Admins see all.
+    const isAdmin = req.user?.role === "admin";
+    if (isAdmin) {
+      if (!req.query.status) {
+        // If admin and no status filter, maybe show all? Or still default to published if public view?
+        // Assuming /manage view passes specific status, so default public list remains clean.
+        // If admin wants to see "pending", they pass status=pending.
+        // If no status, default to published for general feed consistency.
+        filter.status = "published";
+      }
+      // If status IS passed (e.g. pending), Admin sees it. logic below handles it.
+    } else if (userId) {
       filter.$or = [
         { status: "published" },
         { author: userId },
-        { collaborators: userId },
+        { author: userId },
+        { "collaborators.user": userId },
       ];
     } else {
       filter.status = "published";
@@ -87,7 +98,9 @@ export const list = async (req, res) => {
 
     let query = Blog.find(filter)
       .select("-content -contentDelta -contentHTML")
-      .populate("author", "name avatar");
+      .select("-content -contentDelta -contentHTML")
+      .populate("author", "name avatar")
+      .populate("collaborators.user", "name avatar");
     if (sort === "newest") query = query.sort({ createdAt: -1 });
     if (sort === "mostViewed") query = query.sort({ views: -1 });
     if (sort === "trending") query = query.sort({ views: -1, createdAt: -1 });
@@ -111,7 +124,10 @@ export const getById = async (req, res) => {
     // Authorization: allow if published or user is author/collaborator
     const userId = req.user?.id?.toString();
     const isOwner = userId && blog.author._id.toString() === userId;
-    const isCollab = userId && blog.collaborators.map(String).includes(userId);
+    const collaborator =
+      userId &&
+      blog.collaborators.find((c) => c.user && c.user.toString() === userId);
+    const isCollab = !!collaborator;
     let isAssignmentMember = false;
     if (!isOwner && !isCollab && userId) {
       const assignment = await Assignment.findOne({
@@ -128,6 +144,17 @@ export const getById = async (req, res) => {
     ) {
       return sendError(res, 403, "Not authorized");
     }
+
+    // Return the user's permission level for frontend
+    const userRole = isOwner
+      ? "owner"
+      : isCollab
+      ? collaborator.role
+      : "viewer";
+
+    // Inject permissions into response if needed, or frontend calculates it
+    const blogObj = blog.toObject();
+    blogObj.userRole = userRole;
 
     // Increment views for published and record interaction
     if (blog.status === "published") {
@@ -160,7 +187,7 @@ export const getById = async (req, res) => {
       }
     }
 
-    return sendSuccess(res, { blog });
+    return sendSuccess(res, { blog: blogObj });
   } catch (err) {
     return sendError(res, 500, "Failed to fetch blog", err.message);
   }
@@ -370,17 +397,25 @@ export const update = async (req, res) => {
 
     const userId = req.user.id.toString();
     const isOwner = blog.author.toString() === userId;
-    const isCollab = blog.collaborators.map(String).includes(userId);
+    const collaborator = blog.collaborators.find(
+      (c) => c.user && c.user.toString() === userId
+    );
+    const isCollab = !!collaborator;
+
+    // Check if collaborator has edit rights
+    const canEdit = isOwner || (isCollab && collaborator.role === "editor");
+
     let isAssignmentMember = false;
-    if (!isOwner && !isCollab) {
+    if (!canEdit) {
       const assignment = await Assignment.findOne({
         blog: blog._id,
         members: userId,
       }).select("_id");
       isAssignmentMember = !!assignment;
     }
-    if (!isOwner && !isCollab && !isAssignmentMember)
-      return sendError(res, 403, "Not authorized");
+
+    if (!canEdit && !isAssignmentMember)
+      return sendError(res, 403, "Not authorized to edit");
 
     const {
       title,

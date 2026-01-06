@@ -2,7 +2,7 @@ import type { Socket } from 'socket.io-client';
 
 export type CollabClient = {
   socket: Socket;
-  join: (blogId: string, userId: string, cursor?: unknown) => void;
+  join: (blogId: string, userId: string, cursor?: unknown, userInfo?: { name: string; avatar?: string; color: string }) => void;
   leave: (blogId: string, userId: string) => void;
   updateCursor: (blogId: string, userId: string, cursor: unknown) => void;
   saveDraft: (blogId: string, userId: string, content: { contentHTML?: string }) => void;
@@ -45,7 +45,7 @@ export async function connectCollab(): Promise<CollabClient> {
 
   const api: CollabClient = {
     socket,
-    join: (blogId, userId, cursor) => socket.emit('joinSession', { blogId, userId, cursor }),
+    join: (blogId, userId, cursor, userInfo) => socket.emit('joinSession', { blogId, userId, cursor, userInfo }),
     leave: (blogId, userId) => socket.emit('leaveSession', { blogId, userId }),
     updateCursor: (blogId, userId, cursor) => socket.emit('cursorUpdate', { blogId, userId, cursor }),
     saveDraft: (blogId, userId, content) => socket.emit('saveDraft', { blogId, userId, content }),

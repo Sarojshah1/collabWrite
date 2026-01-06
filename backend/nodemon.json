@@ -10,7 +10,13 @@
     "uploads",
     "public",
     "dist",
-    "build"
+    "build",
+    "*.db",
+    "*.sqlite",
+    "leveldb",
+    "yldb",
+    ".DS_Store"
   ],
-  "ext": "js,mjs,json"
+  "ext": "js,mjs,json",
+  "legacyWatch": true
 }

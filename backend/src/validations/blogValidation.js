@@ -4,7 +4,9 @@ export const validateListBlogs = [
   query("q").optional().isString().trim(),
   query("tag").optional().isString().trim(),
   query("author").optional().isMongoId(),
-  query("status").optional().isIn(["draft", "published"]),
+  query("status")
+    .optional()
+    .isIn(["draft", "pending", "published", "rejected"]),
   query("sort").optional().isIn(["newest", "mostViewed", "trending"]),
 ];
 
@@ -14,7 +16,7 @@ export const validateCreateBlog = [
   body("contentDelta").optional().isObject(),
   body("contentHTML").optional().isString(),
   body("tags").optional().isArray(),
-  body("status").optional().isIn(["draft", "published"]),
+  body("status").optional().isIn(["draft", "pending", "published", "rejected"]),
   body("collaborators").optional().isArray(),
   body("category").optional().isString(),
 ];
@@ -42,7 +44,7 @@ export const validateUpdateBlog = [
   body("contentDelta").optional().isObject(),
   body("contentHTML").optional().isString(),
   body("tags").optional().isArray(),
-  body("status").optional().isIn(["draft", "published"]),
+  body("status").optional().isIn(["draft", "pending", "published", "rejected"]),
   body("collaborators").optional().isArray(),
   body("category").optional().isString(),
 ];

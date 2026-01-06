@@ -14,7 +14,7 @@ export const blogSchema = z.object({
   contentHTML: z.string().nullish(),
   // Suggestion: If your component uses a cover image, add it here too
   coverImage: z.string().nullish(), 
-  status: z.enum(["draft", "published"]),
+  status: z.enum(["draft", "pending", "published", "rejected"]),
   version: z.number().int().nullish(),
   createdAt: z.string().nullish(),
   updatedAt: z.string().nullish(),
