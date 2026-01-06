@@ -74,10 +74,10 @@ export default function ManageBlogsPage() {
           </p>
         </div>
         <Link
-          href="/dashboard"
+          href="/admin"
           className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
         >
-          Back to Dashboard
+          Back to Overview
         </Link>
       </header>
 

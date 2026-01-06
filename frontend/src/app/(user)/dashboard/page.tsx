@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { listBlogs, type Blog, toggleBookmark } from "@/services/blogService";
 import { userService } from "@/services/userService";
+import { useAuth } from "@/hooks/useAuth";
 import BlogCard from "@/components/common/BlogCard";
 
 export default function DashboardPage() {
@@ -14,7 +15,7 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "published" | "draft" | "saved"
   >("published");
-  const [user, setUser] = useState<{ id: string } | null>(null);
+  const { user } = useAuth();
   const [authorFilter, setAuthorFilter] = useState<"all" | "me">("all");
   const [tagFilter, setTagFilter] = useState<"all" | string>("all");
 
@@ -25,16 +26,8 @@ export default function DashboardPage() {
         setLoading(true);
         setError(null);
 
-        let currentUser = user;
-        if (!currentUser) {
-          try {
-            const u = await userService.me();
-            if (mounted) {
-              setUser(u);
-              currentUser = u;
-            }
-          } catch (e) {}
-        }
+        // Removed local user fetch; rely on useAuth() from global store
+        const currentUser = user;
 
         const params: any = { sort: "newest" };
         if (statusFilter === "saved") {
@@ -211,9 +204,7 @@ export default function DashboardPage() {
                 : "bg-white text-zinc-700 hover:bg-zinc-50"
             }`}
           >
-            <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-zinc-900 text-white text-[10px]">
-              
-            </span>
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-zinc-900 text-white text-[10px]"></span>
             {publishedCount} Published
           </button>
 
@@ -432,9 +423,7 @@ export default function DashboardPage() {
                 </h2>
                 <div className="mt-3 divide-y divide-zinc-100">
                   <div className="flex gap-3 py-3">
-                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
-                      
-                    </span>
+                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-zinc-700"></span>
                     <div>
                       <p className="text-sm font-medium text-zinc-900">
                         2 posts need review
@@ -445,9 +434,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex gap-3 py-3">
-                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
-                      
-                    </span>
+                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-zinc-700"></span>
                     <div>
                       <p className="text-sm font-medium text-zinc-900">
                         1 draft hasn't been updated
@@ -458,9 +445,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex gap-3 py-3">
-                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
-                      
-                    </span>
+                    <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-100 text-zinc-700"></span>
                     <div>
                       <p className="text-sm font-medium text-zinc-900">
                         Short titles perform better
