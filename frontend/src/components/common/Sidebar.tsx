@@ -23,21 +23,44 @@ export default function Sidebar() {
 
   const primaryItems: Item[] = [
     { href: "/dashboard", label: "Home", icon: <FiHome className="h-4 w-4" /> },
-    { href: "/dashboard/assignments", label: "My Assignments", icon: <FiClipboard className="h-4 w-4" /> },
-    { href: "/dashboard/templates", label: "Templates", icon: <FiGrid className="h-4 w-4" /> },
-    { href: "/dashboard/profile", label: "Profile", icon: <FiUser className="h-4 w-4" /> },
-    { href: "/dashboard/reports", label: "Reports & Analytics", icon: <FiBarChart2 className="h-4 w-4" /> },
+    {
+      href: "/dashboard/assignments",
+      label: "My Assignments",
+      icon: <FiClipboard className="h-4 w-4" />,
+    },
+    {
+      href: "/dashboard/templates",
+      label: "Templates",
+      icon: <FiGrid className="h-4 w-4" />,
+    },
+    {
+      href: "/dashboard/profile",
+      label: "Profile",
+      icon: <FiUser className="h-4 w-4" />,
+    },
+    {
+      href: "/dashboard/reports",
+      label: "Reports & Analytics",
+      icon: <FiBarChart2 className="h-4 w-4" />,
+    },
   ];
 
   return (
     <aside className="h-full">
       <nav className="h-full text-zinc-900">
         <div className="flex items-center gap-2">
-          <a href="/" className="flex items-center gap-2 shrink-0" aria-label="CollabWrite home">
+          <a
+            href="/"
+            className="flex items-center gap-2 shrink-0"
+            aria-label="CollabWrite home"
+          >
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-white">
               <span className="text-sm font-semibold">C</span>
             </span>
-            <span className="text-lg font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+            <span
+              className="text-lg font-semibold tracking-tight"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
               CollabWrite
             </span>
           </a>
@@ -45,23 +68,26 @@ export default function Sidebar() {
 
         <div className="mt-6">
           <ul className="space-y-1 text-sm">
-          {primaryItems.map((it) => {
-            const isActive = pathname === it.href || pathname?.startsWith(it.href + "/");
-            return (
-              <li key={it.label}>
-                <Link
-                  href={it.href}
-                  aria-current={isActive ? "page" : undefined}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
-                    isActive ? "bg-zinc-100 text-zinc-900" : "text-zinc-700 hover:bg-zinc-100"
-                  }`}
-                >
-                  {it.icon}
-                  <span className="truncate">{it.label}</span>
-                </Link>
-              </li>
-            );
-          })}
+            {primaryItems.map((it) => {
+              const isActive =
+                pathname === it.href || pathname?.startsWith(it.href + "/");
+              return (
+                <li key={it.label}>
+                  <Link
+                    href={it.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+                      isActive
+                        ? "bg-zinc-100 text-zinc-900"
+                        : "text-zinc-700 hover:bg-zinc-100"
+                    }`}
+                  >
+                    {it.icon}
+                    <span className="truncate">{it.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
