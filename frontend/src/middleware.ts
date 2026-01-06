@@ -16,9 +16,20 @@ export function middleware(req: NextRequest) {
   }
 
   // If not authed and visiting protected dashboard, send to login
-  if (!isAuthed && (pathname.startsWith("/dashboard") || pathname.startsWith("/write"))) {
+  if (!isAuthed && (pathname.startsWith("/dashboard") || pathname.startsWith("/write") || pathname.startsWith("/admin"))) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+  
+  // Basic role check via cookie (note: for robust security, validate token payload server-side, 
+  // but for middleware speed, this cookie flag is the standard first-pass gate)
+  const role = req.cookies.get("cw_role")?.value;
+
+  // Protect /admin routes
+  if (pathname.startsWith("/admin") && role !== "admin") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 

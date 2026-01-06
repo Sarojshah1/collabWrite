@@ -24,7 +24,7 @@ export const userService = {
       `/auth/users`,
       { params: { q: trimmed } }
     );
-    return data.users.map((u) => ({ id: u._id, name: u.name, email: u.email, avatar: u.avatar || "" }));
+    return data.users.map((u) => ({ id: u._id, name: u.name, email: u.email, avatar: u.avatar || undefined }));
   },
   async getSavedBlogs(): Promise<Array<{ _id: string; title: string; author: { name: string }; createdAt: string }>> {
     const { listBlogs } = await import("./blogService");

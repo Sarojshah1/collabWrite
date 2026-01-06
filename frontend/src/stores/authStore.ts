@@ -6,8 +6,8 @@ export type AuthState = {
   user: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: (payload: { email: string; password: string }) => Promise<void>;
-  register: (payload: { name: string; email: string; password: string; bio?: string; avatar?: File | null }) => Promise<void>;
+  login: (payload: { email: string; password: string }) => Promise<AuthUser>;
+  register: (payload: { name: string; email: string; password: string; bio?: string; avatar?: File | null }) => Promise<AuthUser>;
   logout: () => void;
   refresh: () => Promise<void>;
   setUser: (u: AuthUser | null) => void;
@@ -23,8 +23,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   async refresh() {
     try {
       set({ loading: true });
-      const { data } = await http.get<{ data: { user: AuthUser } }>("/auth/profile");
-      set({ user: data.data.user });
+      const { data } = await http.get<{ user: AuthUser }>("/auth/profile");
+      set({ user: data.user });
     } catch {
       set({ user: null });
     } finally {
@@ -36,6 +36,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const res = await authService.login(payload);
       set({ user: res.user });
+      return res.user;
     } finally {
       set({ loading: false });
     }
@@ -45,6 +46,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const res = await authService.register(payload);
       set({ user: res.user });
+      return res.user;
     } finally {
       set({ loading: false });
     }

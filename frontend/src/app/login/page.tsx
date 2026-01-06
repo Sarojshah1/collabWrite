@@ -28,16 +28,27 @@ export default function LoginPage() {
     if (emailError) return;
     try {
       setLoading(true);
-      await login({ email, password });
-      // Optionally persist remember-me preference (future cookie strategy)
+      const user = await login({ email, password });
+
+      // Optionally persist remember-me preference
       if (remember && typeof window !== "undefined") {
         localStorage.setItem("cw_remember", "1");
       }
-      // Set UX cookie flag for middleware-based redirects
+
+      // Set UX and Role cookies for middleware
       if (typeof document !== "undefined") {
         document.cookie = "cw_auth=1; path=/; max-age=2592000"; // 30 days
+        if (user.role) {
+          document.cookie = `cw_role=${user.role}; path=/; max-age=2592000`;
+        }
       }
-      router.replace("/dashboard");
+
+      // Redirect based on role
+      if (user.role === "admin") {
+        router.replace("/admin");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (e: unknown) {
       setError((e as Error).message || "Login failed");
     } finally {
